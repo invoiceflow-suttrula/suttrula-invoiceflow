@@ -310,6 +310,7 @@ export async function generateBatch({ source, template, mapping, customFields = 
     zip_storage_path: zipPath,
   });
 
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('storage-changed'));
   return { count: invoiceRows.length, total, firstBlob, zipBlob, batchId, dateStr };
 }
 

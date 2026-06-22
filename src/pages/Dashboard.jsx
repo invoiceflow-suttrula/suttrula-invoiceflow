@@ -6,6 +6,7 @@ import Shell from '../components/Shell.jsx';
 import HIcon from '../components/HIcon.jsx';
 import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import StorageMeter from '../components/StorageMeter.jsx';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -35,6 +36,7 @@ export default function Dashboard() {
         const zips = stale.map((b) => b.zip_storage_path).filter(Boolean);
         if (zips.length) await supabase.storage.from('invoices').remove(zips);
         await supabase.from('invoice_batches').delete().in('id', stale.map((b) => b.id));
+        window.dispatchEvent(new Event('storage-changed'));
       }
     })();
   }, []);
@@ -164,8 +166,9 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* ── Right rail: recent batches ─────────── */}
+        {/* ── Right rail: storage + recent batches ─────────── */}
         <div className="h-col" style={{ gap: 14 }}>
+          <StorageMeter />
           <div className="h-card" style={{ padding: 18 }}>
             <div className="h-row h-between" style={{ marginBottom: 12 }}>
               <div className="h-eyebrow">RECENT BATCHES</div>

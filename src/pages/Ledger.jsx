@@ -150,16 +150,30 @@ export function HiFiLedger() {
     if (paths.length) await supabase.storage.from('invoices').remove(paths);
     /* .select() returns the rows actually deleted — if RLS blocks it, this is empty. */
     const { data: deleted, error } = await supabase.from('invoices').delete().in('id', ids).select('id');
-    setBusy(false);
-    if (error) { alert('Delete failed: ' + error.message); return; }
+    if (error) { setBusy(false); alert('Delete failed: ' + error.message); return; }
     if (!deleted || deleted.length === 0) {
+      setBusy(false);
       alert('Nothing was deleted — the database blocked it.\n\nThe invoices DELETE policy still needs to be added in Supabase (see the SQL provided). Until then, invoices reappear on refresh.');
       return;
     }
+
+    /* Reclaim space: if a batch folder now has no PDFs left, drop its batch.zip
+       + batch record too (the zip is the bulk of the storage). */
+    const batchIds = [...new Set(targets.map((r) => r.pdf_storage_path?.split('/')[0]).filter(Boolean))];
+    for (const bid of batchIds) {
+      const { data: left } = await supabase.storage.from('invoices').list(bid, { limit: 1000 });
+      const pdfsLeft = (left || []).some((f) => f.name.endsWith('.pdf'));
+      if (!pdfsLeft) {
+        await supabase.storage.from('invoices').remove([`${bid}/batch.zip`]);
+        await supabase.from('invoice_batches').delete().eq('zip_storage_path', `${bid}/batch.zip`);
+      }
+    }
+    setBusy(false);
     /* Only remove what the DB actually deleted, so the UI can never drift from the DB. */
     const okIds = deleted.map((d) => d.id);
     setRows((prev) => prev.filter((r) => !okIds.includes(r.id)));
     setSelected((prev) => { const n = new Set(prev); okIds.forEach((i) => n.delete(i)); return n; });
+    window.dispatchEvent(new Event('storage-changed'));
   };
   const confirmOne = (r) => { if (window.confirm(`Delete invoice ${r.ref_number}? This also removes its PDF.`)) deleteIds([r.id]); };
   const confirmGroup = (items) => {
