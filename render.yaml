@@ -1,0 +1,18 @@
+# Render Blueprint — deploy Invoice Flow as a static site.
+# Push the `webapp` folder as the repo root, then "New + → Blueprint" in Render.
+services:
+  - type: web
+    name: invoice-flow
+    runtime: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    # SPA fallback so client-side routes (/ledger, /generate, …) don't 404 on refresh
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_SUPABASE_URL
+        sync: false        # set the value in the Render dashboard
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false

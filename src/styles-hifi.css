@@ -1,0 +1,535 @@
+/* ─────────────────────────────────────────────────────────────
+   Passage — hi-fi tokens · forest green + white + mesh
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+  /* Brand accent — drives invoice templates. Defaults to forest green;
+     overridable per-company on the Settings → Brand page. */
+  --brand-accent:       #2D5C4F;
+  --brand-accent-dark:  #102C26;
+  --brand-accent-tint:  #E6EEEA;
+  --brand-accent-on:    #FFFFFF;
+  --brand-deco:         #0d2520;
+
+  /* Forest greens — primary brand axis */
+  --ink:        #0d1f1a;
+  --ink-2:      #102C26;
+  --ink-3:      #1F3D36;
+  --ink-4:      #2D5C4F;
+  --ink-5:      #3A5F52;
+  --ink-6:      #6FA48F;
+  --ink-7:      #A8C7BB;
+  --ink-8:      #D6E4DC;
+  --ink-9:      #EEF3EF;
+
+  /* Whites — neutral with a faint green cast */
+  --paper:      #FFFFFF;
+  --paper-2:    #FAFBFA;
+  --paper-3:    #F2F5F2;
+  --paper-4:    #E5ECE7;
+
+  /* Lines */
+  --line:       #102C26;
+  --line-soft:  rgba(16, 44, 38, 0.28);
+  --line-faint: rgba(16, 44, 38, 0.10);
+  --line-mist:  rgba(16, 44, 38, 0.05);
+
+  /* Fills (transparent, layer over white or mesh) */
+  --fill-soft:  rgba(16, 44, 38, 0.04);
+  --fill-mid:   rgba(16, 44, 38, 0.08);
+  --fill-strong:rgba(16, 44, 38, 0.14);
+
+  /* Radii — curvy / organic spec */
+  --r-xs:    8px;
+  --r-sm:    14px;
+  --r-md:    22px;
+  --r-lg:    32px;
+  --r-xl:    44px;
+  --r-pill:  999px;
+
+  /* Spacing rhythm */
+  --gap-1:   8px;
+  --gap-2:   12px;
+  --gap-3:   18px;
+  --gap-4:   24px;
+  --gap-5:   36px;
+  --gap-6:   56px;
+  --gap-7:   80px;
+
+  /* Type stacks */
+  --serif:   'Instrument Serif', 'Cormorant Garamond', Georgia, serif;
+  --sans:    'DM Sans', system-ui, -apple-system, sans-serif;
+  --mono:    'JetBrains Mono', 'IBM Plex Mono', monospace;
+
+  /* Shadows */
+  --sh-1:    0 1px 2px rgba(16, 44, 38, 0.06);
+  --sh-2:    0 4px 14px rgba(16, 44, 38, 0.08);
+  --sh-3:    0 14px 38px rgba(16, 44, 38, 0.18);
+  --sh-4:    0 30px 60px rgba(13, 31, 26, 0.32);
+
+  /* Mesh gradient — forest greens woven with paper accents */
+  --mesh-deep:
+    radial-gradient(at 14% 18%, #3A5F52 0%, transparent 48%),
+    radial-gradient(at 82% 14%, #1A4438 0%, transparent 52%),
+    radial-gradient(at 72% 86%, #0d2520 0%, transparent 55%),
+    radial-gradient(at 8%  88%, #4A7563 0%, transparent 50%),
+    radial-gradient(at 50% 50%, rgba(255,255,255,0.06) 0%, transparent 40%),
+    #0d2520;
+
+  --mesh-soft:
+    radial-gradient(at 12% 20%, rgba(58, 95, 82, 0.40) 0%, transparent 50%),
+    radial-gradient(at 80% 16%, rgba(26, 68, 56, 0.45) 0%, transparent 55%),
+    radial-gradient(at 70% 84%, rgba(13, 37, 32, 0.40) 0%, transparent 55%),
+    radial-gradient(at 8% 88%,  rgba(74, 117, 99, 0.30) 0%, transparent 50%),
+    var(--paper);
+}
+
+/* ─── Base ─────────────────────────────────────────────── */
+.h, .h * { box-sizing: border-box; }
+.h {
+  font-family: var(--sans);
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.45;
+  letter-spacing: -0.005em;
+  background: var(--paper);
+  font-feature-settings: "ss01", "cv11";
+}
+
+.h .serif { font-family: var(--serif); font-weight: 400; letter-spacing: -0.012em; }
+.h .mono  { font-family: var(--mono);  font-size: 12px; letter-spacing: 0.02em; }
+
+/* ─── Type scale ───────────────────────────────────────── */
+.h .h-display  { font-family: var(--serif); font-size: 64px; line-height: 1.02; letter-spacing: -0.02em; }
+.h .h-hero     { font-family: var(--serif); font-size: 52px; line-height: 1.04; letter-spacing: -0.02em; }
+.h .h-title    { font-family: var(--serif); font-size: 36px; line-height: 1.08; letter-spacing: -0.015em; }
+.h .h-section  { font-family: var(--serif); font-size: 26px; line-height: 1.12; letter-spacing: -0.01em; }
+.h .h-card     { font-family: var(--sans);  font-size: 20px; line-height: 1.2;  font-weight: 500; letter-spacing: -0.01em; }
+.h .h-eyebrow  { font-family: var(--mono);  font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--ink-4); }
+.h .h-meta     { font-family: var(--sans);  font-size: 13px; color: var(--ink-5); }
+.h .h-mono     { font-family: var(--mono);  font-size: 12px; color: var(--ink-3); }
+
+/* ─── Atoms ────────────────────────────────────────────── */
+.h-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 22px;
+  border-radius: var(--r-pill);
+  border: 1.5px solid var(--ink-2);
+  background: var(--paper);
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-size: 14px; font-weight: 500;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  transition: all .15s ease;
+  white-space: nowrap;
+}
+.h-btn:hover { background: var(--ink-9); }
+.h-btn.primary {
+  background: var(--ink-2);
+  color: var(--paper);
+}
+.h-btn.primary:hover { background: var(--ink); }
+.h-btn.ghost {
+  border-color: var(--line-faint);
+  color: var(--ink-3);
+}
+.h-btn.ghost:hover { border-color: var(--line-soft); background: var(--fill-soft); }
+.h-btn.sm { padding: 7px 14px; font-size: 13px; }
+.h-btn.lg { padding: 14px 26px; font-size: 15px; }
+
+.h-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line-faint);
+  background: var(--paper);
+  color: var(--ink-3);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+}
+.h-chip:hover { background: var(--fill-soft); }
+.h-chip.solid { background: var(--ink-2); color: var(--paper); border-color: var(--ink-2); }
+.h-chip.ghost { background: transparent; border-style: dashed; }
+.h-chip.green { background: var(--ink-9); border-color: var(--ink-8); color: var(--ink-2); }
+
+.h-card {
+  background: var(--paper);
+  border: 1px solid var(--line-faint);
+  border-radius: var(--r-md);
+  padding: 20px;
+  box-shadow: var(--sh-1);
+}
+.h-card.flush { padding: 0; overflow: hidden; }
+.h-card.dark  { background: var(--ink-2); color: var(--paper); border-color: var(--ink-2); }
+
+.h-input {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 16px;
+  border: 1.5px solid var(--line-faint);
+  border-radius: var(--r-pill);
+  background: var(--paper);
+  font-family: var(--sans); font-size: 14px;
+  color: var(--ink-2);
+  transition: border-color .15s ease;
+}
+.h-input:hover { border-color: var(--line-soft); }
+.h-input:focus-within { border-color: var(--ink-2); }
+.h-input input { border: 0; outline: 0; font: inherit; flex: 1; background: transparent; color: inherit; }
+.h-input ::placeholder { color: var(--ink-6); }
+
+/* Field block (label + input, used in forms) */
+.h-field { display: flex; flex-direction: column; gap: 6px; }
+.h-field > label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-5); }
+
+/* Data table */
+.h-table {
+  display: grid;
+  background: var(--paper);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  border: 1px solid var(--line-faint);
+}
+.h-table .th, .h-table .td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line-faint);
+  font-size: 14px;
+  display: flex; align-items: center;
+  min-height: 48px;
+}
+.h-table .th {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-5);
+  background: var(--paper-3);
+}
+.h-table .td.num { justify-content: flex-end; font-family: var(--mono); font-size: 13px; }
+.h-table .td.lead { font-weight: 500; }
+.h-table > :nth-last-child(-n+10) { border-bottom-color: transparent; }
+.h-table .row-active { background: var(--ink-9); }
+
+/* Stack helpers */
+.h .h-row { display: flex; align-items: center; gap: var(--gap-3); }
+.h .h-col { display: flex; flex-direction: column; gap: var(--gap-3); }
+.h .h-between { justify-content: space-between; }
+.h .h-flex1 { flex: 1 1 0; min-width: 0; }
+.h .h-grow  { flex-grow: 1; }
+
+/* ─── Shell layout (sidebar on desktop) ──────────────── */
+.h-shell {
+  width: 100%; height: 100%;
+  background: var(--paper);
+  display: grid;
+  grid-template-columns: 232px 1fr;
+  grid-template-rows: 1fr;
+  position: relative;
+}
+.h-shell.has-mesh { background: var(--paper); }
+
+/* Sidebar */
+.h-side {
+  background: var(--paper);
+  border-right: 1px solid var(--line-faint);
+  padding: 22px 16px 20px;
+  display: flex; flex-direction: column;
+  gap: 4px;
+  position: relative;
+  z-index: 5;
+}
+.h-side .h-brand {
+  display: flex; align-items: center; gap: 10px;
+  padding: 4px 10px 18px;
+  border-bottom: 1px solid var(--line-faint);
+  margin-bottom: 12px;
+}
+.h-side .h-brand .glyph {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--ink-2);
+  color: var(--paper);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-size: 18px;
+}
+.h-side .h-brand .name {
+  font-family: var(--serif);
+  font-size: 22px;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.h-side .h-brand .ver {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--ink-6);
+  letter-spacing: 0.2em;
+  margin-left: auto;
+}
+
+.h-side .nav-group {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--ink-6);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  padding: 14px 10px 4px;
+}
+.h-side .nav-item {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 12px;
+  border-radius: var(--r-pill);
+  font-size: 14px; font-weight: 500;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background .12s ease;
+}
+.h-side .nav-item:hover { background: var(--fill-soft); }
+.h-side .nav-item.active {
+  background: var(--ink-2);
+  color: var(--paper);
+}
+.h-side .nav-item .badge {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  background: rgba(255,255,255,0.18);
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+}
+.h-side .nav-item:not(.active) .badge {
+  background: var(--ink-9);
+  color: var(--ink-3);
+}
+
+.h-side .spacer { flex: 1; }
+
+.h-side .h-user {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px;
+  border-radius: var(--r-md);
+  background: var(--paper-3);
+}
+.h-side .h-user .ava {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--ink-2);
+  color: var(--paper);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-size: 14px;
+}
+.h-side .h-user .meta { line-height: 1.2; }
+.h-side .h-user .meta .n { font-size: 13px; font-weight: 500; }
+.h-side .h-user .meta .e { font-size: 11px; color: var(--ink-5); }
+
+/* Main content area */
+.h-main {
+  background: var(--paper);
+  overflow: hidden;
+  position: relative;
+}
+.h-main .h-page {
+  padding: 28px 36px 24px;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  z-index: 2;
+}
+.h-main .h-page.mesh {
+  background: var(--mesh-soft);
+  color: var(--ink);
+}
+
+/* Topbar inside main (page title row) */
+.h-topbar {
+  display: flex; align-items: center; gap: 14px;
+  margin-bottom: 22px;
+}
+.h-topbar .crumb {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-5);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* Step pill (used in upload + batch + single flows) */
+.h-stepper {
+  display: flex; align-items: center; gap: 12px;
+}
+.h-stepper .step {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 14px 6px 6px;
+  border-radius: var(--r-pill);
+  background: var(--paper-3);
+  font-size: 13px;
+  color: var(--ink-4);
+}
+.h-stepper .step .dot {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ink-4);
+  font-family: var(--mono); font-size: 11px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--line-faint);
+}
+.h-stepper .step.done { background: var(--ink-9); color: var(--ink-2); }
+.h-stepper .step.done .dot { background: var(--ink-2); color: var(--paper); border-color: var(--ink-2); }
+.h-stepper .step.active { background: var(--ink-2); color: var(--paper); }
+.h-stepper .step.active .dot { background: var(--paper); color: var(--ink-2); border-color: var(--paper); }
+.h-stepper .bar {
+  flex: 0 0 24px; height: 1.5px;
+  background: var(--line-faint);
+}
+
+/* Status pills */
+.h-status {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.h-status.ok   { background: var(--ink-9); color: var(--ink-2); }
+.h-status.warn { background: #FBE8C9; color: #8a5a16; }
+.h-status.live { background: var(--ink-2); color: var(--paper); }
+.h-status.muted{ background: var(--paper-3); color: var(--ink-5); }
+.h-status .pulse {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Checkboxes for batch select */
+.h-check {
+  width: 18px; height: 18px;
+  border-radius: 6px;
+  border: 1.5px solid var(--line-soft);
+  background: var(--paper);
+  display: flex; align-items: center; justify-content: center;
+  flex: 0 0 auto;
+}
+.h-check.on {
+  background: var(--ink-2); border-color: var(--ink-2);
+  color: var(--paper);
+}
+.h-check.mixed {
+  background: var(--ink-2); border-color: var(--ink-2);
+}
+.h-check.mixed::after { content: ''; width: 8px; height: 1.5px; background: var(--paper); border-radius: 1px; }
+
+/* Generic icon button (round) */
+.h-iconbtn {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 1px solid var(--line-faint);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.h-iconbtn:hover { background: var(--fill-soft); border-color: var(--line-soft); }
+.h-iconbtn.solid { background: var(--ink-2); color: var(--paper); border-color: var(--ink-2); }
+.h-iconbtn.solid:hover { background: var(--ink); }
+
+/* Section title (h-section + small lead) */
+.h-section-title { display: flex; flex-direction: column; gap: 4px; margin-bottom: 18px; }
+.h-section-title .lead { font-size: 14px; color: var(--ink-5); }
+
+/* ─── Ticket preview (the actual deliverable artifact) ──── */
+.ticket {
+  width: 340px;
+  background: var(--paper);
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-faint);
+  box-shadow: var(--sh-3);
+  font-family: var(--sans);
+  color: var(--ink-2);
+  overflow: hidden;
+  position: relative;
+  /* Perforation between body and stub via radial mask */
+  --notch: 14px;
+}
+
+/* Curvy/organic top accent shared across templates */
+.ticket .ribbon {
+  height: 6px;
+  background: var(--ink-2);
+}
+
+/* Perforation row (horizontal dashed line between body + stub) */
+.ticket .perf {
+  position: relative;
+  display: flex; align-items: center;
+  padding: 0 16px;
+  background:
+    radial-gradient(circle at 0 50%, transparent 7px, var(--paper) 7px),
+    radial-gradient(circle at 100% 50%, transparent 7px, var(--paper) 7px);
+  background-color: var(--paper);
+  margin: 0 -14px;
+}
+.ticket .perf::before {
+  content: ''; flex: 1;
+  border-top: 1.5px dashed var(--line-soft);
+  margin: 0 14px;
+}
+
+/* Larger ticket for ticket-template variations */
+.ticket-lg { width: 380px; }
+
+/* ────────────────────────────────────────────────────────────
+   Invoice template (portrait A4) — shared footer + branded
+   variants. Always uses --brand-accent so company theme drives
+   colour across every screen that renders an invoice.
+   ──────────────────────────────────────────────────────────── */
+.inv {
+  width: 380px;
+  aspect-ratio: 1 / 1.414;     /* A4 portrait — fixed single page */
+  background: #fff;
+  color: #1A1A1A;
+  border-radius: 6px;
+  box-shadow: 0 14px 36px rgba(13, 31, 26, 0.18), 0 1.5px 4px rgba(13,31,26,0.08);
+  font-family: var(--sans);
+  font-size: 9px;
+  line-height: 1.4;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.inv.large { width: 440px; }
+.inv .inv-h1 { font-family: var(--sans); font-weight: 700; font-size: 28px; letter-spacing: -0.02em; line-height: 1; }
+.inv .inv-h2 { font-family: var(--sans); font-weight: 700; font-size: 18px; letter-spacing: -0.01em; }
+.inv .inv-eye { font-family: var(--mono); font-size: 6.5px; letter-spacing: 0.22em; text-transform: uppercase; color: #6b6b6b; }
+.inv .inv-num { font-family: var(--mono); font-size: 8px; }
+.inv table { width: 100%; border-collapse: collapse; }
+.inv th, .inv td { padding: 6px 8px; text-align: left; font-size: 8px; }
+.inv th { font-weight: 700; }
+.inv td.num, .inv th.num { text-align: right; font-family: var(--mono); font-size: 8.5px; }
+
+/* The footer is identical across every invoice template. */
+.inv .inv-footer {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 10px 18px;
+  border-top: 1px solid rgba(0,0,0,0.08);
+  font-family: var(--mono);
+  font-size: 7.5px;
+  letter-spacing: 0.12em;
+  color: #6b6b6b;
+  text-transform: uppercase;
+  background: #fff;
+}
+.inv .inv-footer .sep { width: 4px; height: 4px; border-radius: 50%; background: var(--brand-accent); opacity: 0.7; flex: 0 0 auto; }
+.inv .inv-footer .company { color: #1A1A1A; font-weight: 600; }
+
