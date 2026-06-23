@@ -4,6 +4,7 @@ import Shell from '../components/Shell.jsx';
 import HIcon from '../components/HIcon.jsx';
 import { supabase } from '../lib/supabase.js';
 import { useConfirm } from '../components/DeleteConfirmationModal.jsx';
+import useIsMobile from '../hooks/useIsMobile.js';
 
 // Re-usable empty-state hero
 export function EmptyHero({ eyebrow, title, sub, primary, primaryRoute, secondary, secondaryRoute, illustration }) {
@@ -76,6 +77,7 @@ export function PlaceholderCardRow({ count = 3, label = 'Will appear here once y
 export function HiFiLedger() {
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const mobile = useIsMobile();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -212,9 +214,9 @@ export function HiFiLedger() {
   return (
     <Shell active="ledger">
       <div className="h-topbar"><div className="crumb">LEDGER · GROUPED BY DATE</div></div>
-      <div className="h-row h-between" style={{ marginBottom: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="h-row h-between" style={{ marginBottom: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: mobile ? 'wrap' : 'nowrap', gap: 12 }}>
         <div className="h-section-title" style={{ margin: 0 }}>
-          <div className="serif" style={{ fontSize: 36, lineHeight: 1.05 }}>Ledger</div>
+          <div className="serif" style={{ fontSize: mobile ? 28 : 36, lineHeight: 1.05 }}>Ledger</div>
           <div className="lead">{rows.length} invoices · {lakh(totalAll)} total. Grouped by date — click a day to expand.</div>
         </div>
         <div className="h-row" style={{ gap: 8, display: 'flex' }}>
@@ -261,12 +263,12 @@ export function HiFiLedger() {
               {isOpen && (
                 <div style={{ borderTop: '1px solid var(--line-faint)' }}>
                   {g.items.map((r) => (
-                    <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', minHeight: 48, fontSize: 14, fontFamily: 'var(--sans)', borderBottom: '1px solid var(--line-faint)', background: selected.has(r.id) ? 'var(--ink-9)' : 'transparent' }}>
+                    <div key={r.id} style={{ display: 'flex', alignItems: 'center', flexWrap: mobile ? 'wrap' : 'nowrap', rowGap: 4, gap: 12, padding: '12px 18px', minHeight: 48, fontSize: 14, fontFamily: 'var(--sans)', borderBottom: '1px solid var(--line-faint)', background: selected.has(r.id) ? 'var(--ink-9)' : 'transparent' }}>
                       <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelect(r.id)} style={{ width: 16, height: 16, cursor: 'pointer', flex: '0 0 auto' }} />
-                      <span className="h-mono" style={{ fontSize: 11, color: 'var(--ink-5)', width: 150, flex: '0 0 auto' }}>{r.ref_number}</span>
+                      <span className="h-mono" style={{ fontSize: 11, color: 'var(--ink-5)', width: mobile ? 'auto' : 150, flex: '0 0 auto' }}>{r.ref_number}</span>
                       <div style={{ flex: 1, fontSize: 14, fontWeight: 500, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.client_name || '—'}</div>
-                      <div className="h-meta" style={{ flex: 1, fontSize: 13, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.item_summary || '—'}</div>
-                      <span className="h-mono" style={{ fontSize: 13, width: 110, textAlign: 'right', flex: '0 0 auto' }}>₹ {fmtAmt(r.amount)}</span>
+                      <div className="h-meta" style={{ flex: mobile ? '1 1 100%' : 1, fontSize: 13, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', order: mobile ? 3 : 0 }}>{r.item_summary || '—'}</div>
+                      <span className="h-mono" style={{ fontSize: 13, width: mobile ? 'auto' : 110, marginLeft: mobile ? 'auto' : 0, textAlign: 'right', flex: '0 0 auto' }}>₹ {fmtAmt(r.amount)}</span>
                       <div className="h-row" style={{ gap: 4, flex: '0 0 auto' }}>
                         <button className="h-iconbtn" onClick={() => navigate(`/preview/ticket?id=${r.id}`)} style={{ width: 28, height: 28 }} title="Preview"><HIcon name="eye" size={12} /></button>
                         <button className="h-iconbtn" onClick={() => openInvoice(r.pdf_storage_path)} style={{ width: 28, height: 28 }} title="Download"><HIcon name="download" size={12} /></button>

@@ -7,10 +7,12 @@ import HIcon from '../components/HIcon.jsx';
 import { supabase } from '../lib/supabase.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import StorageMeter from '../components/StorageMeter.jsx';
+import useIsMobile from '../hooks/useIsMobile.js';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const mobile = useIsMobile();
   const [invoices, setInvoices] = useState([]);
   const [batches, setBatches] = useState([]);
 
@@ -75,7 +77,7 @@ export default function Dashboard() {
   return (
     <Shell active="dash">
       {/* ── Hero strip with mesh ───── */}
-      <div style={{ borderRadius: 'var(--r-lg)', background: 'var(--mesh-deep)', color: 'var(--paper)', padding: '34px 36px', marginBottom: 24, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ borderRadius: 'var(--r-lg)', background: 'var(--mesh-deep)', color: 'var(--paper)', padding: mobile ? '22px 20px' : '34px 36px', marginBottom: 24, position: 'relative', overflow: 'hidden' }}>
         <svg width="320" height="320" viewBox="0 0 320 320" style={{ position: 'absolute', top: -80, right: -60, opacity: 0.18 }}>
           <path d="M160,40 C220,30 290,90 300,150 C310,210 240,290 170,290 C100,290 30,220 30,150 C30,80 100,50 160,40 Z" fill="white" />
         </svg>
@@ -83,10 +85,10 @@ export default function Dashboard() {
           <path d="M100,20 C150,30 190,80 180,140 C170,200 100,200 60,180 C20,160 10,90 30,60 C50,30 80,15 100,20 Z" fill="white" />
         </svg>
 
-        <div style={{ position: 'relative', zIndex: 1 }} className="h-row h-between">
+        <div style={{ position: 'relative', zIndex: 1, flexWrap: mobile ? 'wrap' : 'nowrap', gap: mobile ? 16 : 0 }} className="h-row h-between">
           <div>
             <div className="h-eyebrow" style={{ color: 'rgba(255,255,255,0.65)' }}>{todayLabel}</div>
-            <div className="serif" style={{ fontSize: 54, lineHeight: 1.04, marginTop: 8, maxWidth: 680 }}>
+            <div className="serif" style={{ fontSize: mobile ? 32 : 54, lineHeight: 1.04, marginTop: 8, maxWidth: 680 }}>
               {greet}, {firstName}. <span style={{ opacity: 0.65 }}>{invoices.length} invoices in your ledger.</span>
             </div>
             <div style={{ display: 'flex', gap: 24, marginTop: 18, alignItems: 'baseline' }}>
@@ -119,8 +121,8 @@ export default function Dashboard() {
       </div>
 
       {/* ── Recent invoices ─────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24, height: 'calc(100% - 280px)' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 280px', gap: 24, height: mobile ? 'auto' : 'calc(100% - 280px)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
           <div className="h-row h-between" style={{ marginBottom: 12 }}>
             <div>
               <div className="h-eyebrow">RECENT INVOICES</div>
@@ -140,9 +142,9 @@ export default function Dashboard() {
               </button>
             </div>
           ) : (
-            <div className="no-scrollbar" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, overflowY: 'auto', flex: 1, minHeight: 0, alignContent: 'start', paddingRight: 4 }}>
+            <div className="no-scrollbar" style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : 'repeat(auto-fill, minmax(240px, 1fr))', gap: 14, overflowY: 'auto', flex: 1, minHeight: 0, alignContent: 'start', paddingRight: 4 }}>
               {recent.map((t) => (
-                <div key={t.id} onClick={() => navigate(`/preview/ticket?id=${t.id}`)} className="h-card" style={{ padding: 18, cursor: 'pointer' }}>
+                <div key={t.id} onClick={() => navigate(`/preview/ticket?id=${t.id}`)} className="h-card" style={{ padding: 18, cursor: 'pointer', minWidth: 0 }}>
                   <div className="h-row h-between" style={{ marginBottom: 10 }}>
                     <span className="h-mono" style={{ fontSize: 11, color: 'var(--ink-5)' }}>{t.ref_number}</span>
                     <span className={'h-status ' + (t.status === 'paid' ? 'ok' : 'muted')}>{t.status || 'draft'}</span>

@@ -11,6 +11,7 @@ import Shell from '../components/Shell.jsx';
 import HIcon from '../components/HIcon.jsx';
 import { supabase } from '../lib/supabase.js';
 import { useConfirm } from '../components/DeleteConfirmationModal.jsx';
+import useIsMobile from '../hooks/useIsMobile.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
 
 /* ── Legacy demo data — used by Generate.jsx until it's wired to Supabase ── */
@@ -123,6 +124,7 @@ export default function DataSources() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const confirm = useConfirm();
+  const mobile = useIsMobile();
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selId, setSelId] = useState(null);
@@ -201,8 +203,8 @@ export default function DataSources() {
     <Shell active="data">
       <div className="h-topbar"><div className="crumb">DATA SOURCES</div></div>
 
-      <div className="h-row h-between" style={{ marginBottom: 18, alignItems: 'flex-start' }}>
-        <div className="h-section-title" style={{ margin: 0 }}>
+      <div className="h-row h-between keep-row" style={{ marginBottom: 18, alignItems: 'flex-start', gap: 12 }}>
+        <div className="h-section-title" style={{ margin: 0, minWidth: 0 }}>
           <div className="serif" style={{ fontSize: 36, lineHeight: 1.05 }}>Data sources</div>
           <div className="lead">
             {sources.length} uploaded · {totalRows.toLocaleString('en-IN')} total rows.
@@ -210,14 +212,16 @@ export default function DataSources() {
           </div>
         </div>
         <div className="h-row" style={{ gap: 8 }}>
-          <div className="h-input" style={{ width: 260 }}>
-            <HIcon name="search" size={14} color="var(--ink-5)" />
-            <input placeholder="Search by filename, column" value={query} onChange={e => setQuery(e.target.value)} />
-          </div>
           <button className="h-btn primary" onClick={() => navigate('/data-sources/upload')}>
             <HIcon name="upload" size={14} /> Upload
           </button>
         </div>
+      </div>
+
+      {/* Search bar (own row) */}
+      <div className="h-input" style={{ marginBottom: 14, maxWidth: 420 }}>
+        <HIcon name="search" size={14} color="var(--ink-5)" />
+        <input placeholder="Search by filename, column" value={query} onChange={e => setQuery(e.target.value)} />
       </div>
 
       {/* Filter chips */}
@@ -261,9 +265,9 @@ export default function DataSources() {
         </div>
       ) : (
         /* Main 2-panel layout */
-        <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 18, height: 'calc(100% - 230px)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '360px 1fr', gap: 18, height: mobile ? 'auto' : 'calc(100% - 230px)' }}>
           {/* Left: source cards */}
-          <div className="h-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div className="h-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: mobile ? 300 : undefined }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line-faint)' }}>
               <div className="h-eyebrow">UPLOADED · {filtered.length}{filtered.length !== sources.length ? ` of ${sources.length}` : ''}</div>
             </div>
@@ -317,7 +321,7 @@ export default function DataSources() {
 
           {/* Right: detail panel */}
           {sel ? (
-            <div className="h-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div className="h-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: mobile ? 460 : undefined }}>
               <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--line-faint)' }}>
                 <div className="h-row h-between" style={{ alignItems: 'flex-start', gap: 14 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -387,6 +391,7 @@ export default function DataSources() {
 export function DataSourceUpload() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const mobile = useIsMobile();
   const fileInputRef = useRef(null);
 
   /* Upload states */
@@ -568,9 +573,9 @@ export function DataSourceUpload() {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 18, height: 'calc(100% - 160px)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1.4fr 1fr', gap: 18, height: mobile ? 'auto' : 'calc(100% - 160px)' }}>
           {/* Drop zone */}
-          <div className="h-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div className="h-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: mobile ? 300 : undefined }}>
             <div
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
@@ -709,9 +714,9 @@ export function DataSourceUpload() {
           <div className="h-meta">{rows.length} rows · {columns.length} cols</div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 18, height: 'calc(100% - 220px)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 280px', gap: 18, height: mobile ? 'auto' : 'calc(100% - 220px)' }}>
           {/* Spreadsheet preview */}
-          <div className="h-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div className="h-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: mobile ? 360 : undefined }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line-faint)', display: 'flex', alignItems: 'center', gap: 12 }}>
               <div className="h-eyebrow">PREVIEW · {rows.length} ROWS</div>
               <div style={{ flex: 1 }} />

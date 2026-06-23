@@ -8,7 +8,7 @@ import { supabase } from '../lib/supabase.js';
 /* Shared brand panel — left side of every auth screen */
 function AuthBrand({ eyebrow, headline, sub, sample }) {
   return (
-    <div style={{
+    <div className="auth-brand" style={{
       background: 'var(--mesh-deep)',
       color: 'var(--paper)',
       padding: '48px 52px 40px',
@@ -145,7 +145,7 @@ export function SignIn() {
   };
 
   return (
-    <div className="h" style={{ width: '100%', height: '100%', display: 'grid', gridTemplateColumns: '1fr 1.05fr', background: 'var(--paper)' }}>
+    <div className="h auth-split" style={{ width: '100%', height: '100%', display: 'grid', gridTemplateColumns: '1fr 1.05fr', background: 'var(--paper)' }}>
       <AuthBrand
         eyebrow="WELCOME BACK"
         headline={<>Pick up where<br />you left off.</>}
@@ -283,7 +283,7 @@ export function SignUp() {
   };
 
   return (
-    <div className="h" style={{ width: '100%', height: '100%', display: 'grid', gridTemplateColumns: '1fr 1.05fr', background: 'var(--paper)' }}>
+    <div className="h auth-split" style={{ width: '100%', height: '100%', display: 'grid', gridTemplateColumns: '1fr 1.05fr', background: 'var(--paper)' }}>
       <AuthBrand
         eyebrow="OPEN A WORKSPACE"
         headline={<>A workspace<br />that ships.</>}
@@ -411,7 +411,7 @@ export function SignUp() {
 export function Forgot() {
   const navigate = useNavigate();
   return (
-    <div className="h" style={{ width: '100%', height: '100%', display: 'grid', gridTemplateColumns: '1fr 1.05fr', background: 'var(--paper)' }}>
+    <div className="h auth-split" style={{ width: '100%', height: '100%', display: 'grid', gridTemplateColumns: '1fr 1.05fr', background: 'var(--paper)' }}>
       <AuthBrand
         eyebrow="LOST YOUR KEY?"
         headline={<>It happens,<br />let's get you back in.</>}
@@ -479,7 +479,7 @@ export function Forgot() {
 export function CheckEmail() {
   const navigate = useNavigate();
   return (
-    <div className="h" style={{ width: '100%', height: '100%', display: 'grid', gridTemplateColumns: '1fr 1.05fr', background: 'var(--paper)' }}>
+    <div className="h auth-split" style={{ width: '100%', height: '100%', display: 'grid', gridTemplateColumns: '1fr 1.05fr', background: 'var(--paper)' }}>
       <AuthBrand
         eyebrow="DELIVERED"
         headline={<>The envelope<br />is in the post.</>}
@@ -529,7 +529,7 @@ export function CheckEmail() {
 export function ResetPassword() {
   const navigate = useNavigate();
   return (
-    <div className="h" style={{ width: '100%', height: '100%', display: 'grid', gridTemplateColumns: '1fr 1.05fr', background: 'var(--paper)' }}>
+    <div className="h auth-split" style={{ width: '100%', height: '100%', display: 'grid', gridTemplateColumns: '1fr 1.05fr', background: 'var(--paper)' }}>
       <AuthBrand
         eyebrow="NEW KEY"
         headline={<>One more step.<br />Pick a strong one.</>}

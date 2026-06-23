@@ -5,6 +5,7 @@ import HIcon from '../components/HIcon.jsx';
 import Invoice from '../components/Invoice.jsx';
 import { supabase } from '../lib/supabase.js';
 import { brandingSample, accentVars } from '../lib/invoicePdf.js';
+import useIsMobile from '../hooks/useIsMobile.js';
 
 /* Per-variant blurbs (the templates table has no description column). */
 const BLURBS = {
@@ -21,6 +22,7 @@ export default function Templates() {
   const [current, setCurrent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [company, setCompany] = useState(null);
+  const mobile = useIsMobile();
 
   useEffect(() => {
     (async () => {
@@ -75,7 +77,7 @@ export default function Templates() {
         background: 'var(--paper-3)', borderRadius: 'var(--r-lg)',
         padding: '20px 16px 14px',
       }}>
-        <div className="h-row" style={{...brandVars, justifyContent:'center', alignItems:'flex-start', gap:40, minHeight:520, display: 'flex'}}>
+        <div className="h-row" style={{...brandVars, justifyContent:'center', alignItems:'flex-start', gap: mobile ? 20 : 40, minHeight:520, display: 'flex', flexWrap: mobile ? 'wrap' : 'nowrap'}}>
           {loading && <div className="h-meta" style={{ alignSelf: 'center' }}>Loading templates…</div>}
           {templates.map(t => {
             const isSel = t.v === current;

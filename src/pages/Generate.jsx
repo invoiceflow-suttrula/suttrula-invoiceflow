@@ -10,6 +10,7 @@ import HIcon from '../components/HIcon.jsx';
 import Invoice from '../components/Invoice.jsx';
 import { supabase } from '../lib/supabase.js';
 import { autoMap, FIELD_DEFS, groupRows, buildInvoiceFromGroup, generateBatch, downloadBlob, brandingSample, accentVars } from '../lib/invoicePdf.js';
+import useIsMobile from '../hooks/useIsMobile.js';
 
 /* Selections persist across the three routes within a session. */
 const genState = {
@@ -32,6 +33,7 @@ export function HiFiGenSelect() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const urlTpl = params.get('template');
+  const mobile = useIsMobile();
   const [sources, setSources] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -88,7 +90,7 @@ export function HiFiGenSelect() {
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, height: 'calc(100% - 170px)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: 18, height: mobile ? 'auto' : 'calc(100% - 170px)' }}>
         {/* Data sources */}
         <div className="h-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line-faint)', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -214,6 +216,7 @@ export function HiFiGenMapping() {
   const navigate = useNavigate();
   const src = genState.source;
   const tpl = genState.template;
+  const mobile = useIsMobile();
   const [custom, setCustom] = useState(genState.customFields);
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState('');
@@ -279,7 +282,7 @@ export function HiFiGenMapping() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, height: 'calc(100% - 160px)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: 18, height: mobile ? 'auto' : 'calc(100% - 160px)' }}>
         {/* Auto-matched (read-only) */}
         <div className="h-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--line-faint)' }}>
@@ -408,6 +411,7 @@ export function HiFiGenRun() {
   const navigate = useNavigate();
   const src = genState.source;
   const tpl = genState.template;
+  const mobile = useIsMobile();
 
   const [phase, setPhase] = useState('ready'); // ready | running | done | error
   const [rowDatas, setRowDatas] = useState(null);
@@ -542,7 +546,7 @@ export function HiFiGenRun() {
 
       {/* READY — customer selection + zoomable preview */}
       {phase === 'ready' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 18, height: 'calc(100% - 150px)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '360px 1fr', gap: 18, height: mobile ? 'auto' : 'calc(100% - 150px)' }}>
           {/* customer selection */}
           <div className="h-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line-faint)' }}>
@@ -629,8 +633,8 @@ export function HiFiGenRun() {
 
       {/* DONE — preview + downloads */}
       {phase === 'done' && result && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 18, height: 'calc(100% - 150px)' }}>
-          <div className="h-card" style={{ padding: 0, overflow: 'hidden', background: 'var(--paper-3)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 320px', gap: 18, height: mobile ? 'auto' : 'calc(100% - 150px)' }}>
+          <div className="h-card" style={{ padding: 0, overflow: 'hidden', background: 'var(--paper-3)', display: 'flex', flexDirection: 'column', height: mobile ? '75vh' : undefined }}>
             <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--line-faint)', background: 'var(--paper)', display: 'flex', alignItems: 'center', gap: 10 }}>
               <div className="h-eyebrow" style={{ flex: 1 }}>
                 PREVIEW · {result.pdfs?.[pageIdx]?.ref || 'INVOICE'}

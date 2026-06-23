@@ -9,6 +9,7 @@ import HIcon from '../components/HIcon.jsx';
 import Invoice from '../components/Invoice.jsx';
 import { supabase } from '../lib/supabase.js';
 import { autoMap, groupRows, buildInvoiceFromGroup, accentVars } from '../lib/invoicePdf.js';
+import useIsMobile from '../hooks/useIsMobile.js';
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
@@ -25,6 +26,7 @@ export default function HiFiPreviewTicket() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const id = params.get('id');
+  const mobile = useIsMobile();
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null); // { inv, template, sample, variant, totals }
@@ -133,13 +135,12 @@ export default function HiFiPreviewTicket() {
   return wrap(
     <>
       {/* Top chrome */}
-      <div className="h-row h-between" style={{ padding: '18px 28px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.18)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div className="h-row" style={{ gap: 14, display: 'flex', alignItems: 'center' }}>
-          <button onClick={() => navigate(-1)} className="h-iconbtn" style={{ width: 32, height: 32, marginRight: 10, background: 'transparent', borderColor: 'rgba(255,255,255,0.18)', color: 'var(--paper)' }}><HIcon name="chev-l" size={15} /></button>
-          <div className="h-row" style={{ gap: 8, alignItems: 'baseline', display: 'flex' }}>
-            <div className="h-mono" style={{ fontSize: 11, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.5)', marginRight: 8 }}>PREVIEW</div>
-            <div className="serif" style={{ fontSize: 22, lineHeight: 1, color: 'var(--paper)', marginRight: 8 }}>{inv.ref_number}</div>
-            <div className="h-mono" style={{ fontSize: 11, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.5)' }}>· {String(inv.client_name || '').toUpperCase()}</div>
+      <div className="h-row h-between" style={{ padding: mobile ? '12px 16px' : '18px 28px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.18)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: mobile ? 'wrap' : 'nowrap', gap: 10 }}>
+        <div className="h-row" style={{ gap: 12, display: 'flex', alignItems: 'center', minWidth: 0, flex: 1 }}>
+          <button onClick={() => navigate(-1)} className="h-iconbtn" style={{ width: 32, height: 32, flex: '0 0 auto', background: 'transparent', borderColor: 'rgba(255,255,255,0.18)', color: 'var(--paper)' }}><HIcon name="chev-l" size={15} /></button>
+          <div style={{ minWidth: 0 }}>
+            <div className="h-mono" style={{ fontSize: 10, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.5)' }}>PREVIEW · {String(inv.client_name || '').toUpperCase()}</div>
+            <div className="serif" style={{ fontSize: mobile ? 18 : 22, lineHeight: 1.1, color: 'var(--paper)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{inv.ref_number}</div>
           </div>
         </div>
         <div className="h-row" style={{ gap: 8, display: 'flex' }}>
@@ -153,7 +154,7 @@ export default function HiFiPreviewTicket() {
       </div>
 
       {/* Body: invoice center + meta sidebar */}
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24, padding: '28px 28px', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 320px', gap: 24, padding: mobile ? '16px' : '28px 28px', overflow: 'auto' }}>
         <div style={{ display: 'flex', flexDirection: 'column', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
           {/* zoom toolbar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.10)' }}>

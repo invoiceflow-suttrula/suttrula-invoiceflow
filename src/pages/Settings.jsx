@@ -6,6 +6,7 @@ import Shell from '../components/Shell.jsx';
 import HIcon from '../components/HIcon.jsx';
 import Invoice from '../components/Invoice.jsx';
 import { supabase } from '../lib/supabase.js';
+import useIsMobile from '../hooks/useIsMobile.js';
 
 const COLOR_PRESETS = [
   { name: 'Forest', accent: '#2D5C4F', dark: '#102C26', tint: '#E6EEEA' },
@@ -32,6 +33,7 @@ export default function Settings() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const templateId = params.get('template');
+  const mobile = useIsMobile();
   const [company, setCompany] = useState(null);
   const [templates, setTemplates] = useState([]);
   const [form, setForm] = useState(EMPTY);
@@ -149,12 +151,12 @@ export default function Settings() {
       </div>
 
       {/* Natural-flow grid (page scrolls) + bottom gap so the last card breathes. */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 460px', gap: 24, alignItems: 'start', paddingBottom: 32 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 460px', gap: 24, alignItems: 'start', paddingBottom: 32 }}>
         <div className="h-col" style={{ gap: 16 }}>
           {/* Company identity */}
           <div className="h-card" style={{ padding: 20 }}>
             <div className="h-eyebrow" style={{ marginBottom: 14 }}>COMPANY</div>
-            <div className="h-row" style={{ gap: 14, alignItems: 'flex-start' }}>
+            <div className="h-row" style={{ gap: 14, alignItems: mobile ? 'stretch' : 'flex-start', flexDirection: mobile ? 'column' : 'row' }}>
               <div style={{ position: 'relative', flex: '0 0 auto' }}>
                 <input ref={fileInputRef} type="file" accept="image/*" onChange={handleLogo} style={{ display: 'none' }} />
                 <div
@@ -184,7 +186,7 @@ export default function Settings() {
                 )}
               </div>
               <div style={{ flex: 1 }} className="h-col">
-                <div className="h-row" style={{ gap: 12 }}>
+                <div className="h-row" style={{ gap: 12, flexDirection: mobile ? 'column' : 'row', alignItems: mobile ? 'stretch' : 'center' }}>
                   <div className="h-field" style={{ flex: 1 }}>
                     <label>Company name</label>
                     <div className="h-input"><input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Enter your company name" /></div>
@@ -194,19 +196,19 @@ export default function Settings() {
                     <div className="h-input"><input value={form.gstin} onChange={(e) => set('gstin', e.target.value)} placeholder="Enter GSTIN" /></div>
                   </div>
                 </div>
-                <div className="h-row" style={{ gap: 12 }}>
+                <div className="h-row" style={{ gap: 12, flexDirection: mobile ? 'column' : 'row', alignItems: mobile ? 'stretch' : 'center' }}>
                   <div className="h-field" style={{ flex: 1 }}>
                     <label>Address</label>
                     <div className="h-input"><input value={form.address} onChange={(e) => set('address', e.target.value)} placeholder="Enter street, city, PIN" /></div>
                   </div>
                 </div>
-                <div className="h-row" style={{ gap: 12 }}>
+                <div className="h-row" style={{ gap: 12, flexDirection: mobile ? 'column' : 'row', alignItems: mobile ? 'stretch' : 'center' }}>
                   <div className="h-field" style={{ flex: 1 }}>
                     <label>Mobile number</label>
                     <div className="h-input"><input value={form.mobile} onChange={(e) => set('mobile', e.target.value)} placeholder="+91 XXXXX XXXXX" /></div>
                   </div>
                 </div>
-                <div className="h-row" style={{ gap: 12 }}>
+                <div className="h-row" style={{ gap: 12, flexDirection: mobile ? 'column' : 'row', alignItems: mobile ? 'stretch' : 'center' }}>
                   <div className="h-field" style={{ flex: 1 }}>
                     <label>Invoice email</label>
                     <div className="h-input"><input value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="invoice@company.com" /></div>
@@ -225,7 +227,7 @@ export default function Settings() {
             <div className="h-eyebrow" style={{ marginBottom: 4 }}>BANK DETAILS</div>
             <div className="h-meta" style={{ marginBottom: 14, fontSize: 13 }}>Appears at the bottom-left of every invoice. Leave blank to hide.</div>
             <div className="h-col" style={{ gap: 12 }}>
-              <div className="h-row" style={{ gap: 12 }}>
+              <div className="h-row" style={{ gap: 12, flexDirection: mobile ? 'column' : 'row', alignItems: mobile ? 'stretch' : 'center' }}>
                 <div className="h-field" style={{ flex: 1 }}>
                   <label>Account holder name</label>
                   <div className="h-input"><input value={form.account_holder} onChange={(e) => set('account_holder', e.target.value)} placeholder="Enter account holder name" /></div>
@@ -235,7 +237,7 @@ export default function Settings() {
                   <div className="h-input"><input value={form.account_number} onChange={(e) => set('account_number', e.target.value)} placeholder="Enter account number" /></div>
                 </div>
               </div>
-              <div className="h-row" style={{ gap: 12 }}>
+              <div className="h-row" style={{ gap: 12, flexDirection: mobile ? 'column' : 'row', alignItems: mobile ? 'stretch' : 'center' }}>
                 <div className="h-field" style={{ flex: 1 }}>
                   <label>Bank name</label>
                   <div className="h-input"><input value={form.bank_name} onChange={(e) => set('bank_name', e.target.value)} placeholder="Enter bank name" /></div>
@@ -245,7 +247,7 @@ export default function Settings() {
                   <div className="h-input"><input value={form.ifsc_code} onChange={(e) => set('ifsc_code', e.target.value)} placeholder="Enter IFSC code" /></div>
                 </div>
               </div>
-              <div className="h-row" style={{ gap: 12 }}>
+              <div className="h-row" style={{ gap: 12, flexDirection: mobile ? 'column' : 'row', alignItems: mobile ? 'stretch' : 'center' }}>
                 <div className="h-field" style={{ flex: 1 }}>
                   <label>UPI ID <span style={{ color: 'var(--ink-6)', fontWeight: 400 }}>(optional)</span></label>
                   <div className="h-input"><input value={form.upi_id} onChange={(e) => set('upi_id', e.target.value)} placeholder="name@upi" /></div>
@@ -266,7 +268,7 @@ export default function Settings() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 18 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: mobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10, marginBottom: 18 }}>
               {COLOR_PRESETS.map((p) => {
                 const on = p.accent.toLowerCase() === (form.accent_color || '').toLowerCase();
                 return (
@@ -293,7 +295,7 @@ export default function Settings() {
               })}
             </div>
 
-            <div className="h-row" style={{ gap: 10, alignItems: 'flex-end' }}>
+            <div className="h-row" style={{ gap: 10, alignItems: mobile ? 'stretch' : 'flex-end', flexDirection: mobile ? 'column' : 'row' }}>
               <div className="h-field" style={{ flex: 1 }}>
                 <label>Custom accent (hex)</label>
                 <div className="h-input">

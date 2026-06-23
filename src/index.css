@@ -34,3 +34,50 @@ a {
 .no-scrollbar::-webkit-scrollbar {
   display: none;                /* Chrome / Safari / Edge */
 }
+
+/* ──────────────────────────────────────────────────────────────
+   Responsive. The sidebar becomes a slide-in drawer on mobile (handled
+   in Shell.jsx); here we tighten page padding and let wide content scroll.
+   Page-level column grids stack via the useIsMobile hook in each page.
+   ────────────────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  /* allow vertical page scroll on small screens */
+  html, body, #root { overflow: auto; }
+
+  .h-main .h-page { padding: 16px 14px 22px; }
+  .h-topbar { margin-bottom: 14px; }
+
+  /* wide tables scroll horizontally instead of breaking */
+  .h-table { overflow-x: auto; }
+
+  /* big hero/serif type wraps instead of overflowing */
+  .serif { word-break: break-word; }
+
+  /* Page headers (title + action buttons) stack vertically on mobile.
+     Targets only the header rows that hold a section title, so other
+     h-between rows (tables, inline controls) are unaffected. */
+  .h-row.h-between:has(> .h-section-title) {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px;
+  }
+  .h-row.h-between:has(> .h-section-title) > .h-row { flex-wrap: wrap; }
+
+  /* Opt-out: headers that should stay a row (small action button) on mobile. */
+  .h-row.h-between.keep-row {
+    flex-direction: row !important;
+    align-items: flex-start !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .h-main .h-page { padding: 14px 12px 20px; }
+}
+
+/* Auth screens: drop the left brand panel, form goes full width on small screens.
+   !important overrides the inline grid-template-columns. */
+@media (max-width: 760px) {
+  .auth-split { grid-template-columns: 1fr !important; }
+  .auth-brand { display: none !important; }
+  .auth-split > div { padding-left: 28px !important; padding-right: 28px !important; }
+}
