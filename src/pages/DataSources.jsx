@@ -10,6 +10,7 @@ import * as XLSX from 'xlsx';
 import Shell from '../components/Shell.jsx';
 import HIcon from '../components/HIcon.jsx';
 import { supabase } from '../lib/supabase.js';
+import { useConfirm } from '../components/DeleteConfirmationModal.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 
 /* ── Legacy demo data — used by Generate.jsx until it's wired to Supabase ── */
@@ -121,6 +122,7 @@ function analyzeHealth(columns, rows) {
 export default function DataSources() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const confirm = useConfirm();
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selId, setSelId] = useState(null);
@@ -165,7 +167,12 @@ export default function DataSources() {
 
   /* Delete a data source */
   const handleDelete = async (id) => {
-    if (!confirm('Delete this data source and all its rows?')) return;
+    const s = sources.find((x) => x.id === id);
+    const ok = await confirm({
+      title: 'Delete data source', itemName: s?.file_name,
+      message: 'This deletes the file and all its parsed rows permanently. This action cannot be undone.',
+    });
+    if (!ok) return;
     setDeleting(id);
     await supabase.from('data_rows').delete().eq('data_source_id', id);
     await supabase.from('data_sources').delete().eq('id', id);

@@ -3,12 +3,12 @@
    items by re-grouping the source rows (we persist a summary per invoice, not
    the individual lines), then renders the live Invoice + real metadata. */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import HIcon from '../components/HIcon.jsx';
 import Invoice from '../components/Invoice.jsx';
 import { supabase } from '../lib/supabase.js';
-import { autoMap, groupRows, buildInvoiceFromGroup } from '../lib/invoicePdf.js';
+import { autoMap, groupRows, buildInvoiceFromGroup, accentVars } from '../lib/invoicePdf.js';
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
@@ -28,6 +28,17 @@ export default function HiFiPreviewTicket() {
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null); // { inv, template, sample, variant, totals }
+  const [zoom, setZoom] = useState(1);
+  const previewRef = useRef(null);
+  const clampZoom = (z) => Math.min(2, Math.max(0.5, Math.round(z * 100) / 100));
+
+  useEffect(() => {
+    const el = previewRef.current;
+    if (!el) return;
+    const onWheel = (e) => { e.preventDefault(); setZoom((z) => clampZoom(z - e.deltaY * 0.0015)); };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [data]);
 
   useEffect(() => {
     if (!id) { setLoading(false); return; }
@@ -52,7 +63,7 @@ export default function HiFiPreviewTicket() {
         const map = autoMap(source.detected_columns || []);
         const groups = groupRows((rows || []).map((r) => r.row_data), map);
         for (const g of groups) {
-          const built = buildInvoiceFromGroup(g, map, { company, refNumber: inv.ref_number, dateStr });
+          const built = buildInvoiceFromGroup(g, map, { company, refNumber: inv.ref_number, dateStr, hidden: inv.hidden_fields || [] });
           const same = built.meta.client_name.toLowerCase() === String(inv.client_name || '').toLowerCase()
             && String(built.meta.email || '').toLowerCase() === String(inv.email || '').toLowerCase();
           if (same) { sample = built.sample; totals = { subtotal: inr(built.sample.subtotal), gst: inr(built.sample.gst), total: inr(built.sample.total) }; break; }
@@ -69,7 +80,7 @@ export default function HiFiPreviewTicket() {
         };
       }
 
-      setData({ inv, template, variant, sample, totals });
+      setData({ inv, template, variant, sample, totals, accent: company?.accent_color });
       setLoading(false);
     })();
   }, [id]);
@@ -104,7 +115,7 @@ export default function HiFiPreviewTicket() {
     </div>
   );
 
-  const { inv, template, variant, sample, totals } = data;
+  const { inv, template, variant, sample, totals, accent } = data;
 
   const statusMeta = {
     paid: { label: 'Paid', dot: '#A8C7BB' },
@@ -143,8 +154,24 @@ export default function HiFiPreviewTicket() {
 
       {/* Body: invoice center + meta sidebar */}
       <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24, padding: '28px 28px', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 'var(--r-lg)', padding: '20px', overflow: 'auto' }}>
-          <Invoice variant={variant} sample={sample} />
+        <div style={{ display: 'flex', flexDirection: 'column', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
+          {/* zoom toolbar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.10)' }}>
+            <div className="h-mono" style={{ fontSize: 10, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.5)', flex: 1 }}>ZOOM</div>
+            <button onClick={() => setZoom((z) => clampZoom(z - 0.1))} className="h-iconbtn" title="Zoom out" style={{ width: 28, height: 28, background: 'transparent', borderColor: 'rgba(255,255,255,0.22)', color: 'var(--paper)' }}><HIcon name="minus" size={14} /></button>
+            <input type="range" min="50" max="200" step="5" value={Math.round(zoom * 100)} onChange={(e) => setZoom(clampZoom(e.target.value / 100))} style={{ width: 120 }} />
+            <button onClick={() => setZoom((z) => clampZoom(z + 0.1))} className="h-iconbtn" title="Zoom in" style={{ width: 28, height: 28, background: 'transparent', borderColor: 'rgba(255,255,255,0.22)', color: 'var(--paper)' }}><HIcon name="plus" size={14} /></button>
+            <span className="h-mono" style={{ fontSize: 12, width: 46, textAlign: 'center', color: 'var(--paper)' }}>{Math.round(zoom * 100)}%</span>
+            <button onClick={() => setZoom(1)} className="h-btn ghost sm" style={{ background: 'transparent', borderColor: 'rgba(255,255,255,0.22)', color: 'var(--paper)' }}>Reset</button>
+          </div>
+          {/* scrollable, scaled invoice */}
+          <div ref={previewRef} style={{ ...accentVars(accent), flex: 1, overflow: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 20 }}>
+            <div style={{ width: 380 * zoom, height: 537 * zoom, flex: '0 0 auto', position: 'relative' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
+                <Invoice variant={variant} sample={sample} />
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* meta sidebar */}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Shell from '../components/Shell.jsx';
 import HIcon from '../components/HIcon.jsx';
 import { supabase } from '../lib/supabase.js';
+import { useConfirm } from '../components/DeleteConfirmationModal.jsx';
 
 // Re-usable empty-state hero
 export function EmptyHero({ eyebrow, title, sub, primary, primaryRoute, secondary, secondaryRoute, illustration }) {
@@ -74,6 +75,7 @@ export function PlaceholderCardRow({ count = 3, label = 'Will appear here once y
 
 export function HiFiLedger() {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -175,11 +177,21 @@ export function HiFiLedger() {
     setSelected((prev) => { const n = new Set(prev); okIds.forEach((i) => n.delete(i)); return n; });
     window.dispatchEvent(new Event('storage-changed'));
   };
-  const confirmOne = (r) => { if (window.confirm(`Delete invoice ${r.ref_number}? This also removes its PDF.`)) deleteIds([r.id]); };
-  const confirmGroup = (items) => {
+  const confirmOne = async (r) => {
+    const ok = await confirm({
+      title: 'Delete invoice', itemName: r.ref_number,
+      message: 'This removes the invoice and its PDF permanently. This action cannot be undone.',
+    });
+    if (ok) deleteIds([r.id]);
+  };
+  const confirmGroup = async (items) => {
     const ids = items.filter((i) => selected.has(i.id)).map((i) => i.id);
     if (!ids.length) return;
-    if (window.confirm(`Delete ${ids.length} invoice${ids.length > 1 ? 's' : ''}? This also removes their PDFs.`)) deleteIds(ids);
+    const ok = await confirm({
+      title: `Delete ${ids.length} invoice${ids.length > 1 ? 's' : ''}`,
+      message: 'This removes the selected invoices and their PDFs permanently. This action cannot be undone.',
+    });
+    if (ok) deleteIds(ids);
   };
 
   const exportCsv = () => {

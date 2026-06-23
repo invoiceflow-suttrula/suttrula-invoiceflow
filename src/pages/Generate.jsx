@@ -3,20 +3,24 @@
    Step 2  /generate/mapping   → auto-mapped fields (read-only) + add custom fields
    Step 3  /generate/run       → batch-generate PDFs, then preview + download */
 
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Shell from '../components/Shell.jsx';
 import HIcon from '../components/HIcon.jsx';
 import Invoice from '../components/Invoice.jsx';
 import { supabase } from '../lib/supabase.js';
-import { autoMap, FIELD_DEFS, groupRows, generateBatch, downloadBlob, brandingSample, accentVars } from '../lib/invoicePdf.js';
+import { autoMap, FIELD_DEFS, groupRows, buildInvoiceFromGroup, generateBatch, downloadBlob, brandingSample, accentVars } from '../lib/invoicePdf.js';
 
 /* Selections persist across the three routes within a session. */
 const genState = {
   source: null,        // data_sources row
   template: null,      // templates row
   customFields: [],    // [{ label, value }]
+  hiddenFields: [],    // auto-mapped field keys hidden from the invoice
 };
+
+/* Auto-mapped fields the user is allowed to hide (others are structural/required). */
+const HIDEABLE = new Set(['email', 'phone', 'city', 'tax']);
 
 const variantOf = (tpl) => parseInt(tpl?.layout_type, 10) || 1;
 const fmtINR = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
@@ -26,11 +30,13 @@ const fmtINR = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN', { maximumF
 // ════════════════════════════════════════════════════════════════════
 export function HiFiGenSelect() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const urlTpl = params.get('template');
   const [sources, setSources] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [srcId, setSrcId] = useState(genState.source?.id || null);
-  const [tplId, setTplId] = useState(genState.template?.id || null);
+  const [tplId, setTplId] = useState(urlTpl || genState.template?.id || null);
   const [company, setCompany] = useState(null);
 
   useEffect(() => {
@@ -209,23 +215,39 @@ export function HiFiGenMapping() {
   const src = genState.source;
   const tpl = genState.template;
   const [custom, setCustom] = useState(genState.customFields);
+  const [adding, setAdding] = useState(false);
+  const [newLabel, setNewLabel] = useState('');
+  const [newValue, setNewValue] = useState('');
+  const [hidden, setHidden] = useState(() => new Set(genState.hiddenFields || []));
+  const labelRef = useRef(null);
+
+  const toggleHidden = (key) => setHidden((prev) => {
+    const n = new Set(prev);
+    n.has(key) ? n.delete(key) : n.add(key);
+    genState.hiddenFields = [...n];
+    return n;
+  });
 
   useEffect(() => {
     if (!src || !tpl) navigate('/generate', { replace: true });
   }, [src, tpl, navigate]);
+  useEffect(() => { if (adding) labelRef.current?.focus(); }, [adding]);
   if (!src || !tpl) return null;
 
   const columns = src.detected_columns || [];
   const mapping = autoMap(columns);
   const unmappedCols = columns.filter((c) => !Object.values(mapping).includes(c));
 
-  const addCustom = () => {
-    const label = window.prompt('Name for the new field (e.g. "Booking Reference", "Tour Date"):');
-    if (!label) return;
-    const value = window.prompt(`Value for "${label}" (applied to every invoice — leave blank to fill later):`) || '';
-    const next = [...custom, { label: label.trim(), value: value.trim() }];
+  const startAdding = () => { setNewLabel(''); setNewValue(''); setAdding(true); };
+  const cancelAdding = () => { setAdding(false); setNewLabel(''); setNewValue(''); };
+  const confirmAdd = () => {
+    const label = newLabel.trim();
+    if (!label) { labelRef.current?.focus(); return; }
+    if (custom.some((c) => c.label.toLowerCase() === label.toLowerCase())) { cancelAdding(); return; }
+    const next = [...custom, { label, value: newValue.trim() }];
     setCustom(next);
     genState.customFields = next;
+    cancelAdding();
   };
   const removeCustom = (i) => {
     const next = custom.filter((_, idx) => idx !== i);
@@ -261,27 +283,38 @@ export function HiFiGenMapping() {
         {/* Auto-matched (read-only) */}
         <div className="h-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--line-faint)' }}>
-            <div className="h-eyebrow">AUTO-MATCHED FIELDS · LOCKED</div>
-            <div style={{ fontSize: 13, color: 'var(--ink-3)', marginTop: 4 }}>Detected from your spreadsheet columns</div>
+            <div className="h-eyebrow">AUTO-MATCHED FIELDS</div>
+            <div style={{ fontSize: 13, color: 'var(--ink-3)', marginTop: 4 }}>Detected automatically · use the eye toggle to hide a field from the invoice</div>
           </div>
           <div className="no-scrollbar" style={{ flex: 1, overflow: 'auto', padding: '14px 18px' }}>
             <div className="h-col" style={{ gap: 8 }}>
               {FIELD_DEFS.map((f) => {
                 const col = mapping[f.key];
+                const canHide = col && HIDEABLE.has(f.key);
+                const isHidden = hidden.has(f.key);
                 return (
                   <div key={f.key} className="h-row h-between" style={{
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     padding: '10px 14px', borderRadius: 'var(--r-md)',
                     background: col ? 'var(--ink-9)' : 'var(--paper)',
-                    border: '1px solid var(--line-faint)', opacity: col ? 1 : 0.6,
+                    border: '1px solid var(--line-faint)', opacity: col ? (isHidden ? 0.5 : 1) : 0.6,
                   }}>
                     <div className="h-row" style={{ gap: 10, display: 'flex', alignItems: 'center' }}>
                       <HIcon name={col ? 'check' : 'x'} size={14} color={col ? 'var(--brand-accent)' : 'var(--ink-6)'} />
-                      <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink-2)' }}>{f.label}</span>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink-2)', textDecoration: isHidden ? 'line-through' : 'none' }}>{f.label}</span>
                     </div>
-                    <span className="h-mono" style={{ fontSize: 12, color: col ? 'var(--ink-2)' : 'var(--ink-6)' }}>
-                      {col ? '← ' + col : 'not found'}
-                    </span>
+                    <div className="h-row" style={{ gap: 10, display: 'flex', alignItems: 'center' }}>
+                      <span className="h-mono" style={{ fontSize: 12, color: col ? 'var(--ink-2)' : 'var(--ink-6)' }}>
+                        {col ? (isHidden ? 'hidden' : '← ' + col) : 'not found'}
+                      </span>
+                      {canHide ? (
+                        <button className="h-iconbtn" style={{ width: 26, height: 26 }} title={isHidden ? 'Show on invoice' : 'Hide from invoice'} onClick={() => toggleHidden(f.key)}>
+                          <HIcon name={isHidden ? 'eye-off' : 'eye'} size={13} />
+                        </button>
+                      ) : col ? (
+                        <span className="h-mono" style={{ fontSize: 9, letterSpacing: '0.14em', color: 'var(--ink-6)' }}>REQUIRED</span>
+                      ) : null}
+                    </div>
                   </div>
                 );
               })}
@@ -326,9 +359,41 @@ export function HiFiGenMapping() {
             )}
           </div>
           <div style={{ padding: '10px 18px 16px', borderTop: '1px solid var(--line-faint)' }}>
-            <button onClick={addCustom} className="h-btn ghost" style={{ width: '100%', justifyContent: 'center', borderStyle: 'dashed' }}>
-              <HIcon name="plus" size={14} /> Add custom field
-            </button>
+            {adding ? (
+              <div className="h-col" style={{ gap: 8 }}>
+                <div className="h-row" style={{ gap: 8, display: 'flex' }}>
+                  <div className="h-input" style={{ flex: 1 }}>
+                    <input
+                      ref={labelRef}
+                      value={newLabel}
+                      onChange={(e) => setNewLabel(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') confirmAdd(); if (e.key === 'Escape') cancelAdding(); }}
+                      placeholder="Field name (e.g. Booking Reference)"
+                    />
+                  </div>
+                  <div className="h-input" style={{ flex: 1 }}>
+                    <input
+                      value={newValue}
+                      onChange={(e) => setNewValue(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') confirmAdd(); if (e.key === 'Escape') cancelAdding(); }}
+                      placeholder="Value (optional)"
+                    />
+                  </div>
+                </div>
+                <div className="h-row" style={{ gap: 8, display: 'flex' }}>
+                  <button onClick={confirmAdd} className="h-btn primary sm" style={{ flex: 1, justifyContent: 'center' }}>
+                    <HIcon name="check" size={13} /> Add
+                  </button>
+                  <button onClick={cancelAdding} className="h-btn ghost sm" style={{ flex: 1, justifyContent: 'center' }}>
+                    <HIcon name="x" size={13} /> Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={startAdding} className="h-btn ghost" style={{ width: '100%', justifyContent: 'center', borderStyle: 'dashed' }}>
+                <HIcon name="plus" size={14} /> Add custom field
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -349,13 +414,26 @@ export function HiFiGenRun() {
   const [plannedCount, setPlannedCount] = useState(src?.row_count || 0);
   const [progress, setProgress] = useState({ done: 0, total: src?.row_count || 0 });
   const [result, setResult] = useState(null);
+  const [pageIdx, setPageIdx] = useState(0);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [error, setError] = useState('');
   const [company, setCompany] = useState(null);
+  const [selected, setSelected] = useState(null); // Set of selected customer-group indices
+  const [zoom, setZoom] = useState(0.8);
+  const previewRef = useRef(null);
+  const clampZoom = (z) => Math.min(2, Math.max(0.5, Math.round(z * 100) / 100));
 
   useEffect(() => {
     if (!src || !tpl) navigate('/generate', { replace: true });
   }, [src, tpl, navigate]);
+  /* Mouse-wheel zoom over the preview (native listener so we can preventDefault). */
+  useEffect(() => {
+    const el = previewRef.current;
+    if (!el) return;
+    const onWheel = (e) => { e.preventDefault(); setZoom((z) => clampZoom(z - e.deltaY * 0.0015)); };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [phase]);
   useEffect(() => {
     if (!src) return;
     (async () => {
@@ -368,26 +446,63 @@ export function HiFiGenRun() {
       setCompany(co);
       const count = groupRows(rds, autoMap(src.detected_columns || [])).length;
       setPlannedCount(count);
-      setProgress((p) => ({ ...p, total: count }));
+      setSelected(new Set(Array.from({ length: count }, (_, i) => i))); // all selected by default
     })();
   }, [src]);
-  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
+  /* Build a fresh object URL for the currently-viewed invoice; revoke the old one. */
+  useEffect(() => {
+    const blob = result?.pdfs?.[pageIdx]?.blob;
+    if (!blob) { setPreviewUrl(null); return; }
+    const url = URL.createObjectURL(blob);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [result, pageIdx]);
   if (!src || !tpl) return null;
 
-  const brand = brandingSample(company);
+  /* Include custom fields + hidden-field flags so the preview matches the output. */
+  const hiddenSet = new Set(genState.hiddenFields || []);
+  const brand = {
+    ...brandingSample(company),
+    extras: (genState.customFields || []).filter((f) => f.label),
+    hide: { email: hiddenSet.has('email'), phone: hiddenSet.has('phone'), city: hiddenSet.has('city'), tax: hiddenSet.has('tax') },
+  };
   const brandVars = accentVars(company?.accent_color);
+
+  /* Customers = grouped rows; the user picks which to generate. */
+  const mapping = autoMap(src.detected_columns || []);
+  const groups = rowDatas ? groupRows(rowDatas, mapping) : [];
+  const custName = (g) => String((mapping.name ? g[0][mapping.name] : g[0][Object.keys(g[0])[0]]) || 'Customer');
+  const custEmail = (g) => String((mapping.email ? g[0][mapping.email] : '') || '');
+  const selectedCount = selected ? selected.size : 0;
+
+  const toggleRow = (i) => setSelected((prev) => { const n = new Set(prev); n.has(i) ? n.delete(i) : n.add(i); return n; });
+  const selectAll = () => setSelected(new Set(groups.map((_, i) => i)));
+  const deselectAll = () => setSelected(new Set());
+
+  /* Build the preview from the FIRST selected customer's real rows (not demo data). */
+  const previewDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const previewIdx = groups.findIndex((_, i) => selected?.has(i));
+  const previewGroup = groups[previewIdx >= 0 ? previewIdx : 0];
+  const previewSample = previewGroup
+    ? buildInvoiceFromGroup(previewGroup, mapping, {
+        company, refNumber: 'INV-0001', dateStr: previewDate,
+        customFields: genState.customFields, hidden: genState.hiddenFields,
+      }).sample
+    : brand;
 
   const run = async () => {
     setPhase('running');
     setError('');
+    setProgress({ done: 0, total: selectedCount });
     try {
       const { data: company } = await supabase.from('companies').select('*').limit(1).maybeSingle();
+      const selectedRows = groups.filter((_, i) => selected?.has(i)).flat();
       const res = await generateBatch(
-        { source: src, template: tpl, mapping: autoMap(src.detected_columns || []), customFields: genState.customFields, company, rows: rowDatas },
+        { source: src, template: tpl, mapping, customFields: genState.customFields, hidden: genState.hiddenFields, company, rows: selectedRows },
         (done, total) => setProgress({ done, total })
       );
       setResult(res);
-      if (res.firstBlob) setPreviewUrl(URL.createObjectURL(res.firstBlob));
+      setPageIdx(0);
       setPhase('done');
     } catch (e) {
       console.error('Generation failed:', e);
@@ -418,19 +533,69 @@ export function HiFiGenRun() {
             <button className="h-btn ghost" onClick={() => navigate('/generate/mapping')} style={{ marginRight: 8 }}>
               <HIcon name="chev-l" size={14} /> Back
             </button>
-            <button className="h-btn primary lg" onClick={run} disabled={rowDatas === null}>
-              <HIcon name="ticket" size={15} /> Generate {plannedCount} invoices
+            <button className="h-btn primary lg" onClick={run} disabled={rowDatas === null || selectedCount === 0}>
+              <HIcon name="ticket" size={15} /> Generate {selectedCount} invoice{selectedCount === 1 ? '' : 's'}
             </button>
           </div>
         )}
       </div>
 
-      {/* READY */}
+      {/* READY — customer selection + zoomable preview */}
       {phase === 'ready' && (
-        <div className="h-card" style={{ padding: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, textAlign: 'center' }}>
-          <div style={{ ...brandVars, transform: 'scale(0.7)', transformOrigin: 'center' }}><Invoice variant={variantOf(tpl)} sample={brand} /></div>
-          <div className="h-meta" style={{ maxWidth: 460 }}>
-            Ready to create {plannedCount} invoice{plannedCount === 1 ? '' : 's'} from {src.row_count} rows — rows are grouped by customer, so each person's items appear on one invoice ({genState.customFields.length} custom field{genState.customFields.length === 1 ? '' : 's'}). Click generate to start.
+        <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 18, height: 'calc(100% - 150px)' }}>
+          {/* customer selection */}
+          <div className="h-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line-faint)' }}>
+              <div className="h-eyebrow">SELECT CUSTOMERS</div>
+              <div style={{ fontSize: 13, color: 'var(--ink-3)', marginTop: 4 }}>{selectedCount} of {groups.length} selected</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, padding: '10px 14px', borderBottom: '1px solid var(--line-faint)' }}>
+              <button className="h-btn ghost sm" style={{ flex: 1, justifyContent: 'center' }} onClick={selectAll}><HIcon name="check" size={13} /> Select all</button>
+              <button className="h-btn ghost sm" style={{ flex: 1, justifyContent: 'center' }} onClick={deselectAll}><HIcon name="x" size={13} /> Deselect all</button>
+            </div>
+            <div className="no-scrollbar" style={{ flex: 1, overflow: 'auto', padding: '10px 12px' }}>
+              {rowDatas === null ? (
+                <div className="h-meta" style={{ padding: 16 }}>Loading…</div>
+              ) : (
+                <div className="h-col" style={{ gap: 6 }}>
+                  {groups.map((g, i) => {
+                    const on = selected?.has(i);
+                    return (
+                      <label key={i} style={{
+                        display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 'var(--r-md)', cursor: 'pointer',
+                        border: '1px solid var(--line-faint)', background: on ? 'var(--ink-9)' : 'var(--paper)',
+                      }}>
+                        <input type="checkbox" checked={!!on} onChange={() => toggleRow(i)} style={{ width: 16, height: 16, flex: '0 0 auto', cursor: 'pointer' }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{custName(g)}</div>
+                          {custEmail(g) && <div className="h-meta" style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{custEmail(g)}</div>}
+                        </div>
+                        {g.length > 1 && <span className="h-mono" style={{ fontSize: 9, color: 'var(--ink-5)' }}>{g.length} items</span>}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* zoomable preview */}
+          <div className="h-card" style={{ padding: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--line-faint)', background: 'var(--paper)' }}>
+              <div className="h-eyebrow" style={{ flex: 1 }}>PREVIEW</div>
+              <button className="h-iconbtn" style={{ width: 28, height: 28 }} title="Zoom out" onClick={() => setZoom((z) => clampZoom(z - 0.1))}><HIcon name="minus" size={14} /></button>
+              <input type="range" min="50" max="200" step="5" value={Math.round(zoom * 100)} onChange={(e) => setZoom(clampZoom(e.target.value / 100))} style={{ width: 110 }} />
+              <button className="h-iconbtn" style={{ width: 28, height: 28 }} title="Zoom in" onClick={() => setZoom((z) => clampZoom(z + 0.1))}><HIcon name="plus" size={14} /></button>
+              <span className="h-mono" style={{ fontSize: 12, width: 46, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
+              <button className="h-btn ghost sm" onClick={() => setZoom(0.8)}>Reset</button>
+            </div>
+            <div ref={previewRef} style={{ flex: 1, overflow: 'auto', background: 'var(--paper-3)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 24 }}>
+              <div style={{ width: 440 * zoom, height: 622 * zoom, flex: '0 0 auto', position: 'relative' }}>
+                <div style={{ ...brandVars, position: 'absolute', top: 0, left: 0, transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
+                  <Invoice variant={variantOf(tpl)} sample={previewSample} />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -466,11 +631,24 @@ export function HiFiGenRun() {
       {phase === 'done' && result && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 18, height: 'calc(100% - 150px)' }}>
           <div className="h-card" style={{ padding: 0, overflow: 'hidden', background: 'var(--paper-3)', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line-faint)', background: 'var(--paper)' }}>
-              <div className="h-eyebrow">PREVIEW · FIRST INVOICE</div>
+            <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--line-faint)', background: 'var(--paper)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className="h-eyebrow" style={{ flex: 1 }}>
+                PREVIEW · {result.pdfs?.[pageIdx]?.ref || 'INVOICE'}
+              </div>
+              <button className="h-iconbtn" style={{ width: 28, height: 28 }} title="Previous invoice"
+                disabled={pageIdx === 0} onClick={() => setPageIdx((i) => Math.max(0, i - 1))}>
+                <HIcon name="chev-l" size={14} />
+              </button>
+              <span className="h-mono" style={{ fontSize: 12, minWidth: 90, textAlign: 'center' }}>
+                {(result.pdfs?.length ? pageIdx + 1 : 0)} of {result.pdfs?.length || 0}
+              </span>
+              <button className="h-iconbtn" style={{ width: 28, height: 28 }} title="Next invoice"
+                disabled={pageIdx >= (result.pdfs?.length || 1) - 1} onClick={() => setPageIdx((i) => Math.min((result.pdfs?.length || 1) - 1, i + 1))}>
+                <HIcon name="chev-r" size={14} />
+              </button>
             </div>
             {previewUrl
-              ? <iframe title="invoice-preview" src={previewUrl} style={{ flex: 1, width: '100%', border: 0 }} />
+              ? <iframe key={pageIdx} title="invoice-preview" src={previewUrl} style={{ flex: 1, width: '100%', border: 0 }} />
               : <div className="h-meta" style={{ padding: 20 }}>No preview available.</div>}
           </div>
 
@@ -489,8 +667,8 @@ export function HiFiGenRun() {
                 <HIcon name="download" size={15} /> Download all (ZIP)
               </button>
               <button className="h-btn lg" style={{ justifyContent: 'center' }}
-                onClick={() => result.firstBlob && downloadBlob(result.firstBlob, 'invoice-001.pdf')}>
-                <HIcon name="download" size={15} /> Download single PDF
+                onClick={() => { const p = result.pdfs?.[pageIdx]; if (p) downloadBlob(p.blob, `${p.ref}.pdf`); }}>
+                <HIcon name="download" size={15} /> Download this PDF
               </button>
               <button className="h-btn ghost lg" style={{ justifyContent: 'center' }} onClick={() => navigate('/ledger')}>
                 <HIcon name="file" size={15} /> View in Ledger

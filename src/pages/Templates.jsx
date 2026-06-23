@@ -44,6 +44,17 @@ export default function Templates() {
   const brand = brandingSample(company);
   const brandVars = accentVars(company?.accent_color);
 
+  /* Remember the chosen template as the default (DB), then open the generator on it. */
+  const useTemplate = async () => {
+    if (selected?.id) {
+      await supabase.from('templates').update({ is_default: false }).neq('id', selected.id);
+      await supabase.from('templates').update({ is_default: true }).eq('id', selected.id);
+      navigate(`/generate?template=${selected.id}`);
+    } else {
+      navigate('/generate');
+    }
+  };
+
   return (
     <Shell active="tmpl">
       <div className="h-topbar"><div className="crumb">TEMPLATES · INVOICE DESIGN</div></div>
@@ -55,7 +66,7 @@ export default function Templates() {
         </div>
         <div className="h-row" style={{gap:8, display: 'flex'}}>
           <button className="h-btn" onClick={() => navigate(`/settings${selected?.id ? `?template=${selected.id}` : ''}`)} style={{marginRight: 6}}><HIcon name="pencil" size={14}/> Edit company details</button>
-          <button className="h-btn primary" onClick={() => navigate('/generate')}><HIcon name="check" size={14}/> Use this template</button>
+          <button className="h-btn primary" onClick={useTemplate}><HIcon name="check" size={14}/> Use this template</button>
         </div>
       </div>
 

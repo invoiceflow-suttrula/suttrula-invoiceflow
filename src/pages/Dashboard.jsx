@@ -69,7 +69,7 @@ export default function Dashboard() {
     if (data?.signedUrl) window.open(data.signedUrl, '_blank', 'noopener');
   };
 
-  const recent = last5.slice(0, 6);
+  const recent = last5; // all invoices within the 5-day window
   const lastBatch = batches[0];
 
   return (
@@ -120,7 +120,7 @@ export default function Dashboard() {
 
       {/* ── Recent invoices ─────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24, height: 'calc(100% - 280px)' }}>
-        <div>
+        <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div className="h-row h-between" style={{ marginBottom: 12 }}>
             <div>
               <div className="h-eyebrow">RECENT INVOICES</div>
@@ -140,7 +140,7 @@ export default function Dashboard() {
               </button>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+            <div className="no-scrollbar" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, overflowY: 'auto', flex: 1, minHeight: 0, alignContent: 'start', paddingRight: 4 }}>
               {recent.map((t) => (
                 <div key={t.id} onClick={() => navigate(`/preview/ticket?id=${t.id}`)} className="h-card" style={{ padding: 18, cursor: 'pointer' }}>
                   <div className="h-row h-between" style={{ marginBottom: 10 }}>

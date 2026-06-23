@@ -6,6 +6,9 @@ import { createBrowserRouter, RouterProvider, Outlet } from 'react-router-dom';
 /* Auth */
 import { AuthProvider } from './contexts/AuthContext.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
+import { ConfirmProvider } from './components/DeleteConfirmationModal.jsx';
+import ErrorPage from './pages/ErrorPage.jsx';
 
 /* Pages */
 import { SignIn, SignUp, Forgot, CheckEmail, ResetPassword } from './pages/Auth.jsx';
@@ -104,13 +107,14 @@ const router = createBrowserRouter([
       },
 
       /* Errors (public) */
+      { path: '/error', element: <ErrorPage /> },
       { path: '/404', element: <NotFound /> },
       { path: '/500', element: <ServerError /> },
       { path: '/403', element: <Forbidden /> },
       { path: '/offline', element: <Offline /> },
 
-      /* Catch-all */
-      { path: '*', element: <NotFound /> },
+      /* Catch-all → unified error page (404) */
+      { path: '*', element: <ErrorPage /> },
     ]
   }
 ]);
@@ -124,8 +128,12 @@ export default function App() {
   }, []);
 
   return (
-    <AuthProvider>
-      {booting ? <LoadingScreen /> : <RouterProvider router={router} />}
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <ConfirmProvider>
+          {booting ? <LoadingScreen /> : <RouterProvider router={router} />}
+        </ConfirmProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

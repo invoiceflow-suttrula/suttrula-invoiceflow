@@ -1,7 +1,7 @@
 /* invoicePdf.js — the generation engine.
-   Auto-maps spreadsheet columns to invoice fields, renders each row's Invoice
-   component to an A4 PDF (html2canvas + jsPDF), uploads to Supabase Storage,
-   writes invoices + invoice_batches rows, and bundles a ZIP. */
+   Renders each row's actual <Invoice> component to a high-resolution A4 PDF
+   (html2canvas + jsPDF) so the download is an exact copy of the on-screen
+   preview — same logo, font, alignment. Uploads to Storage, writes rows, ZIPs. */
 
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
@@ -65,10 +65,11 @@ export function groupRows(rowDatas, map) {
 
 /* Build the `sample` prop for the Invoice component + the DB row metadata,
    for one customer group (1..N line items). */
-export function buildInvoiceFromGroup(group, map, { company, refNumber, dateStr, customFields = [] }) {
+export function buildInvoiceFromGroup(group, map, { company, refNumber, dateStr, customFields = [], hidden = [] }) {
   const first = group[0];
   const get = (k, rd = first) => (map[k] ? rd[map[k]] : undefined);
   const clientName = String(get('name') || first[Object.keys(first)[0]] || 'Customer');
+  const hide = new Set(hidden);
 
   const lines = group.map((rd) => {
     const qty = toNum(get('qty', rd)) || 1;
@@ -79,7 +80,7 @@ export function buildInvoiceFromGroup(group, map, { company, refNumber, dateStr,
 
   const subtotal = lines.reduce((a, l) => a + l.amount, 0);
   const taxTotal = lines.reduce((a, l) => a + l.lineTax, 0);
-  const total = subtotal + taxTotal;
+  const total = subtotal + (hide.has('tax') ? 0 : taxTotal);
 
   return {
     sample: {
@@ -89,6 +90,7 @@ export function buildInvoiceFromGroup(group, map, { company, refNumber, dateStr,
       due: dateStr,
       pax: clientName,
       paxLine2: String(get('email') || ''),
+      custPhone: String(get('phone') || ''),
       city: String(get('city') || ''),
       company: company?.name || 'My Company',
       addr: company?.address || '',
@@ -108,6 +110,7 @@ export function buildInvoiceFromGroup(group, map, { company, refNumber, dateStr,
       gst: inr(taxTotal),
       total: inr(total),
       extras: customFields.filter((f) => f.label),
+      hide: { email: hide.has('email'), phone: hide.has('phone'), city: hide.has('city'), tax: hide.has('tax') },
     },
     meta: {
       client_name: clientName,
@@ -116,22 +119,6 @@ export function buildInvoiceFromGroup(group, map, { company, refNumber, dateStr,
       amount: total,
     },
   };
-}
-
-async function waitForAssets(node) {
-  if (document.fonts?.ready) { try { await document.fonts.ready; } catch { /* ignore */ } }
-  const imgs = Array.from(node.querySelectorAll('img'));
-  await Promise.all(
-    imgs.map((img) =>
-      img.complete && img.naturalWidth
-        ? Promise.resolve()
-        : new Promise((res) => {
-            img.addEventListener('load', res, { once: true });
-            img.addEventListener('error', res, { once: true });
-          })
-    )
-  );
-  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 }
 
 /* Brand colour presets (mirror Settings) so a saved accent that matches a
@@ -147,16 +134,6 @@ const COLOR_PRESETS = {
   '#3a3a3a': { dark: '#1A1A1A', tint: '#E9E9E9' },
   '#5b3a6e': { dark: '#2F1C42', tint: '#EBE3F0' },
 };
-function applyTheme(host, accent) {
-  if (!accent) return;
-  const k = String(accent).toLowerCase();
-  const p = COLOR_PRESETS[k] || { dark: accent, tint: '#EEF2F0' };
-  host.style.setProperty('--brand-accent', accent);
-  host.style.setProperty('--brand-accent-dark', p.dark);
-  host.style.setProperty('--brand-accent-tint', p.tint);
-  host.style.setProperty('--brand-accent-on', '#ffffff');
-}
-
 /* Branding for invoice PREVIEWS — real company fields layered over the demo
    line-items, so Templates / Settings / Generator all show the same invoice. */
 export function brandingSample(company) {
@@ -189,7 +166,35 @@ export function accentVars(accent) {
   };
 }
 
-/* Render one Invoice to an A4 PDF Blob via an off-screen React root. */
+async function waitForAssets(node) {
+  if (document.fonts?.ready) { try { await document.fonts.ready; } catch { /* ignore */ } }
+  const imgs = Array.from(node.querySelectorAll('img'));
+  await Promise.all(
+    imgs.map((img) =>
+      img.complete && img.naturalWidth
+        ? Promise.resolve()
+        : new Promise((res) => {
+            img.addEventListener('load', res, { once: true });
+            img.addEventListener('error', res, { once: true });
+          })
+    )
+  );
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+}
+
+/* Apply the brand accent as CSS vars on the off-screen host so the captured
+   invoice uses the company's colour. */
+function applyTheme(host, accent) {
+  if (!accent) return;
+  const p = COLOR_PRESETS[String(accent).toLowerCase()] || { dark: accent, tint: '#EEF2F0' };
+  host.style.setProperty('--brand-accent', accent);
+  host.style.setProperty('--brand-accent-dark', p.dark);
+  host.style.setProperty('--brand-accent-tint', p.tint);
+  host.style.setProperty('--brand-accent-on', '#ffffff');
+}
+
+/* Render the real <Invoice> component to an A4 PDF Blob — an exact copy of the
+   on-screen preview, captured at high resolution (~300 DPI) for print quality. */
 export async function renderInvoicePdf({ variant, sample, accent }) {
   const host = document.createElement('div');
   host.style.cssText = 'position:fixed; left:-10000px; top:0; width:480px; background:#fff; z-index:-1;';
@@ -200,26 +205,22 @@ export async function renderInvoicePdf({ variant, sample, accent }) {
     flushSync(() => root.render(createElement(Invoice, { variant, sample, large: true })));
     const node = host.querySelector('.inv');
     await waitForAssets(node);
-    const canvas = await html2canvas(node, {
-      scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false,
-    });
-    const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
+    const canvas = await html2canvas(node, { scale: 4, backgroundColor: '#ffffff', useCORS: true, logging: false, imageTimeout: 0 });
+    const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait', compress: true });
     const pw = pdf.internal.pageSize.getWidth();
     const ph = pdf.internal.pageSize.getHeight();
-    const img = canvas.toDataURL('image/jpeg', 0.95);
+    const img = canvas.toDataURL('image/png');
     const imgH = canvas.height * (pw / canvas.width);
     if (imgH <= ph + 1) {
-      pdf.addImage(img, 'JPEG', 0, 0, pw, imgH);
+      pdf.addImage(img, 'PNG', 0, 0, pw, imgH, undefined, 'FAST');
     } else {
-      /* Taller than one A4 page → slice the image across pages. */
-      let position = 0;
-      let heightLeft = imgH;
-      pdf.addImage(img, 'JPEG', 0, 0, pw, imgH);
+      let position = 0, heightLeft = imgH;
+      pdf.addImage(img, 'PNG', 0, 0, pw, imgH, undefined, 'FAST');
       heightLeft -= ph;
       while (heightLeft > 0) {
         position -= ph;
         pdf.addPage();
-        pdf.addImage(img, 'JPEG', 0, position, pw, imgH);
+        pdf.addImage(img, 'PNG', 0, position, pw, imgH, undefined, 'FAST');
         heightLeft -= ph;
       }
     }
@@ -232,7 +233,7 @@ export async function renderInvoicePdf({ variant, sample, accent }) {
 
 /* Full pipeline: rows -> PDFs -> Storage -> invoices/invoice_batches -> ZIP.
    onProgress(done, total) is called after each invoice. */
-export async function generateBatch({ source, template, mapping, customFields = [], company, rows: providedRows }, onProgress) {
+export async function generateBatch({ source, template, mapping, customFields = [], hidden = [], company, rows: providedRows }, onProgress) {
   const variant = parseInt(template?.layout_type, 10) || 1;
 
   let rowDatas = providedRows;
@@ -258,13 +259,14 @@ export async function generateBatch({ source, template, mapping, customFields = 
 
   const zip = new JSZip();
   const invoiceRows = [];
+  const pdfs = [];            // { ref, blob } per invoice, for the preview navigator
   let total = 0;
   let firstBlob = null;
 
   for (let i = 0; i < groups.length; i++) {
     const refNumber = `INV-${stamp}-${String(i + 1).padStart(4, '0')}`;
     const { sample, meta } = buildInvoiceFromGroup(groups[i], mapping, {
-      company, refNumber, dateStr, customFields,
+      company, refNumber, dateStr, customFields, hidden,
     });
     const blob = await renderInvoicePdf({ variant, sample, accent: company?.accent_color });
     const path = `${batchId}/${refNumber}.pdf`;
@@ -286,14 +288,21 @@ export async function generateBatch({ source, template, mapping, customFields = 
       pdf_storage_path: path,
       data_source_id: source.id,
       template_id: template.id,
+      hidden_fields: hidden,
     });
     zip.file(`${refNumber}.pdf`, blob);
+    pdfs.push({ ref: refNumber, blob });
     total += meta.amount;
     if (i === 0) firstBlob = blob;
     onProgress?.(i + 1, groups.length);
   }
 
-  const { error: invErr } = await supabase.from('invoices').insert(invoiceRows);
+  let { error: invErr } = await supabase.from('invoices').insert(invoiceRows);
+  if (invErr && /hidden_fields/.test(invErr.message || '')) {
+    /* Column not added yet — insert without it so generation still works. */
+    const stripped = invoiceRows.map(({ hidden_fields, ...rest }) => rest); // eslint-disable-line no-unused-vars
+    ({ error: invErr } = await supabase.from('invoices').insert(stripped));
+  }
   if (invErr) throw invErr;
 
   const zipBlob = await zip.generateAsync({ type: 'blob' });
@@ -311,7 +320,7 @@ export async function generateBatch({ source, template, mapping, customFields = 
   });
 
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('storage-changed'));
-  return { count: invoiceRows.length, total, firstBlob, zipBlob, batchId, dateStr };
+  return { count: invoiceRows.length, total, firstBlob, zipBlob, batchId, dateStr, pdfs };
 }
 
 /* Browser download helper for a Blob. */

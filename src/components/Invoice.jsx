@@ -14,13 +14,16 @@ export function InvoiceFooter({ no = 'INV-PSG-0142', company = 'Nexivra Travel' 
 export function ExtrasBlock({ items, dark = false }) {
   if (!items?.length) return null;
   return (
-    <div style={{ padding: '12px 22px 0', display: 'flex', flexWrap: 'wrap', gap: '4px 20px', fontSize: 8 }}>
-      {items.map((e, i) => (
-        <div key={i}>
-          <span style={{ color: dark ? '#888' : '#888' }}>{e.label}: </span>
-          <span style={{ fontWeight: 600, color: dark ? '#fff' : '#1a1a1a' }}>{e.value || '—'}</span>
-        </div>
-      ))}
+    <div style={{ padding: '10px 22px 0', fontSize: 8 }}>
+      <div style={{ fontWeight: 700, color: dark ? '#fff' : '#1a1a1a', marginBottom: 3 }}>Additional details</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '2px 10px', maxWidth: 220 }}>
+        {items.map((e, i) => (
+          <React.Fragment key={i}>
+            <span style={{ color: '#888', whiteSpace: 'nowrap' }}>{e.label}:</span>
+            <span style={{ fontWeight: 600, color: dark ? '#fff' : '#1a1a1a', overflowWrap: 'anywhere', minWidth: 0 }}>{e.value || '—'}</span>
+          </React.Fragment>
+        ))}
+      </div>
     </div>
   );
 }
@@ -58,6 +61,7 @@ export const INV_SAMPLE = {
   due: '07 Jun 2026',
   pax: 'Anjali Rao',
   paxLine2: 'anjali.rao@gmail.com',
+  custPhone: '+91 98123 45678',
   city: 'Bengaluru · IN',
   company: 'Nexivra Travel',
   addr: '12/2 MG Road, Kochi 682011',
@@ -120,8 +124,9 @@ export default function Invoice({ variant = 1, sample = {}, scale = 1, large = f
           <div style={{textAlign:'right'}}>
             <div className="inv-h2" style={{color:'#0E1B33'}}>INVOICE TO:</div>
             <div style={{marginTop:6, fontWeight:700}}>{s.pax.toUpperCase()}</div>
-            <div style={{opacity:0.7}}>{s.paxLine2}</div>
-            <div style={{opacity:0.7}}>{s.city}</div>
+            {!s.hide?.email && s.paxLine2 && <div style={{opacity:0.7}}>{s.paxLine2}</div>}
+            {!s.hide?.phone && s.custPhone && <div style={{opacity:0.7}}>{s.custPhone}</div>}
+            {!s.hide?.city && s.city && <div style={{opacity:0.7}}>{s.city}</div>}
           </div>
         </div>
 
@@ -155,7 +160,7 @@ export default function Invoice({ variant = 1, sample = {}, scale = 1, large = f
         <div style={{padding:'10px 22px 0', display:'flex', justifyContent:'flex-end', position:'relative', zIndex:1}}>
           <div style={{width:160}}>
             <div style={{display:'flex', justifyContent:'space-between', fontSize:8, padding:'3px 8px'}}><span style={{color:'#888', fontWeight:700, letterSpacing:'0.08em'}}>SUBTOTAL</span><span>₹ {s.subtotal}</span></div>
-            <div style={{display:'flex', justifyContent:'space-between', fontSize:8, padding:'3px 8px'}}><span style={{color:'#888', fontWeight:700, letterSpacing:'0.08em'}}>TAXES</span><span>₹ {s.gst}</span></div>
+            {!s.hide?.tax && <div style={{display:'flex', justifyContent:'space-between', fontSize:8, padding:'3px 8px'}}><span style={{color:'#888', fontWeight:700, letterSpacing:'0.08em'}}>TAXES</span><span>₹ {s.gst}</span></div>}
             <div style={{display:'flex', justifyContent:'space-between', background:'var(--brand-accent)', color:'var(--brand-accent-on)', padding:'5px 8px', marginTop:4, fontSize:9.5, fontWeight:700, letterSpacing:'0.05em', borderRadius:3}}><span>TOTAL</span><span>₹ {s.total}</span></div>
           </div>
         </div>
@@ -211,8 +216,9 @@ export default function Invoice({ variant = 1, sample = {}, scale = 1, large = f
             <div>
               <div className="inv-eye" style={{color:'#888', fontSize:6.5}}>BILL TO</div>
               <div style={{marginTop:4, color:'#0E1B33', fontWeight:600}}>{s.pax}</div>
-              <div style={{marginTop:1}}>{s.paxLine2}</div>
-              <div>{s.city}</div>
+              {!s.hide?.email && s.paxLine2 && <div style={{marginTop:1}}>{s.paxLine2}</div>}
+              {!s.hide?.phone && s.custPhone && <div>{s.custPhone}</div>}
+              {!s.hide?.city && s.city && <div>{s.city}</div>}
             </div>
           </div>
 
@@ -236,7 +242,7 @@ export default function Invoice({ variant = 1, sample = {}, scale = 1, large = f
           <div style={{display:'flex', justifyContent:'flex-end', marginTop:10}}>
             <div style={{width:160, fontSize:8}}>
               <div style={{display:'flex', justifyContent:'space-between', padding:'2px 0', color:'#666'}}><span>Subtotal</span><span>₹ {s.subtotal}</span></div>
-              <div style={{display:'flex', justifyContent:'space-between', padding:'2px 0', color:'#666'}}><span>GST 5%</span><span>₹ {s.gst}</span></div>
+              {!s.hide?.tax && <div style={{display:'flex', justifyContent:'space-between', padding:'2px 0', color:'#666'}}><span>GST 5%</span><span>₹ {s.gst}</span></div>}
               <div style={{display:'flex', justifyContent:'space-between', marginTop:6, paddingTop:6, borderTop:'1px solid #0E1B33', fontSize:15, color:'var(--brand-accent)', fontWeight:800, letterSpacing:'-0.02em'}}>
                 <span>Total</span><span>₹ {s.total}</span>
               </div>

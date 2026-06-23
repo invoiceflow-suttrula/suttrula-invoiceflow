@@ -67,8 +67,8 @@ export default function Settings() {
     reader.onload = () => {
       const img = new Image();
       img.onload = () => {
-        /* Downscale to max 240px wide so the stored data URL stays small. */
-        const scale = Math.min(1, 240 / img.width);
+        /* Downscale to max 480px wide — small enough to store, sharp enough for hi-DPI PDFs. */
+        const scale = Math.min(1, 480 / img.width);
         const w = Math.round(img.width * scale);
         const h = Math.round(img.height * scale);
         const canvas = document.createElement('canvas');
@@ -187,33 +187,33 @@ export default function Settings() {
                 <div className="h-row" style={{ gap: 12 }}>
                   <div className="h-field" style={{ flex: 1 }}>
                     <label>Company name</label>
-                    <div className="h-input"><input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="My Company" /></div>
+                    <div className="h-input"><input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Enter your company name" /></div>
                   </div>
                   <div className="h-field" style={{ width: 180 }}>
                     <label>GSTIN</label>
-                    <div className="h-input"><input value={form.gstin} onChange={(e) => set('gstin', e.target.value)} placeholder="29ABCDE1234F1Z5" /></div>
+                    <div className="h-input"><input value={form.gstin} onChange={(e) => set('gstin', e.target.value)} placeholder="Enter GSTIN" /></div>
                   </div>
                 </div>
                 <div className="h-row" style={{ gap: 12 }}>
                   <div className="h-field" style={{ flex: 1 }}>
                     <label>Address</label>
-                    <div className="h-input"><input value={form.address} onChange={(e) => set('address', e.target.value)} placeholder="Street, City PIN" /></div>
+                    <div className="h-input"><input value={form.address} onChange={(e) => set('address', e.target.value)} placeholder="Enter street, city, PIN" /></div>
                   </div>
                 </div>
                 <div className="h-row" style={{ gap: 12 }}>
                   <div className="h-field" style={{ flex: 1 }}>
                     <label>Mobile number</label>
-                    <div className="h-input"><input value={form.mobile} onChange={(e) => set('mobile', e.target.value)} placeholder="+91 …" /></div>
+                    <div className="h-input"><input value={form.mobile} onChange={(e) => set('mobile', e.target.value)} placeholder="+91 XXXXX XXXXX" /></div>
                   </div>
                 </div>
                 <div className="h-row" style={{ gap: 12 }}>
                   <div className="h-field" style={{ flex: 1 }}>
                     <label>Invoice email</label>
-                    <div className="h-input"><input value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="billing@company.com" /></div>
+                    <div className="h-input"><input value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="invoice@company.com" /></div>
                   </div>
                   <div className="h-field" style={{ flex: 1 }}>
                     <label>Phone</label>
-                    <div className="h-input"><input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+91 …" /></div>
+                    <div className="h-input"><input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+91 XXXXX XXXXX" /></div>
                   </div>
                 </div>
               </div>
@@ -228,27 +228,27 @@ export default function Settings() {
               <div className="h-row" style={{ gap: 12 }}>
                 <div className="h-field" style={{ flex: 1 }}>
                   <label>Account holder name</label>
-                  <div className="h-input"><input value={form.account_holder} onChange={(e) => set('account_holder', e.target.value)} placeholder="My Company" /></div>
+                  <div className="h-input"><input value={form.account_holder} onChange={(e) => set('account_holder', e.target.value)} placeholder="Enter account holder name" /></div>
                 </div>
                 <div className="h-field" style={{ flex: 1 }}>
                   <label>Account number</label>
-                  <div className="h-input"><input value={form.account_number} onChange={(e) => set('account_number', e.target.value)} placeholder="0001 2345 6789" /></div>
+                  <div className="h-input"><input value={form.account_number} onChange={(e) => set('account_number', e.target.value)} placeholder="Enter account number" /></div>
                 </div>
               </div>
               <div className="h-row" style={{ gap: 12 }}>
                 <div className="h-field" style={{ flex: 1 }}>
                   <label>Bank name</label>
-                  <div className="h-input"><input value={form.bank_name} onChange={(e) => set('bank_name', e.target.value)} placeholder="HDFC Bank" /></div>
+                  <div className="h-input"><input value={form.bank_name} onChange={(e) => set('bank_name', e.target.value)} placeholder="Enter bank name" /></div>
                 </div>
                 <div className="h-field" style={{ flex: 1 }}>
                   <label>IFSC code</label>
-                  <div className="h-input"><input value={form.ifsc_code} onChange={(e) => set('ifsc_code', e.target.value)} placeholder="HDFC0001234" /></div>
+                  <div className="h-input"><input value={form.ifsc_code} onChange={(e) => set('ifsc_code', e.target.value)} placeholder="Enter IFSC code" /></div>
                 </div>
               </div>
               <div className="h-row" style={{ gap: 12 }}>
                 <div className="h-field" style={{ flex: 1 }}>
                   <label>UPI ID <span style={{ color: 'var(--ink-6)', fontWeight: 400 }}>(optional)</span></label>
-                  <div className="h-input"><input value={form.upi_id} onChange={(e) => set('upi_id', e.target.value)} placeholder="company@upi" /></div>
+                  <div className="h-input"><input value={form.upi_id} onChange={(e) => set('upi_id', e.target.value)} placeholder="name@upi" /></div>
                 </div>
               </div>
             </div>
