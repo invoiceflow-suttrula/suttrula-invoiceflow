@@ -181,6 +181,7 @@ export default function DataSources() {
     setSources(prev => prev.filter(s => s.id !== id));
     if (selId === id) setSelId(sources.find(s => s.id !== id)?.id || null);
     setDeleting(null);
+    window.dispatchEvent(new Event('storage-changed')); // refresh sidebar badge
   };
 
   const sel = sources.find(s => s.id === selId);
@@ -211,7 +212,10 @@ export default function DataSources() {
             {sources.length === 0 && ' Upload a spreadsheet to get started.'}
           </div>
         </div>
-        <div className="h-row" style={{ gap: 8 }}>
+        <div className="h-row" style={{ gap: 8, flexWrap: 'wrap' }}>
+          <button className="h-btn" onClick={() => navigate('/data-sources/create')}>
+            <HIcon name="plus" size={14} /> Create spreadsheet
+          </button>
           <button className="h-btn primary" onClick={() => navigate('/data-sources/upload')}>
             <HIcon name="upload" size={14} /> Upload
           </button>
@@ -259,9 +263,14 @@ export default function DataSources() {
           <div className="h-meta" style={{ fontSize: 14, marginTop: 10, maxWidth: 420, lineHeight: 1.55 }}>
             Upload a .xlsx or .csv file. We'll auto-detect column headers, preview the data, and save it so you can use it to generate invoices.
           </div>
-          <button className="h-btn primary" style={{ marginTop: 22 }} onClick={() => navigate('/data-sources/upload')}>
-            <HIcon name="upload" size={14} /> Upload your first file
-          </button>
+          <div className="h-row" style={{ gap: 10, marginTop: 22, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button className="h-btn primary" onClick={() => navigate('/data-sources/upload')}>
+              <HIcon name="upload" size={14} /> Upload a file
+            </button>
+            <button className="h-btn" onClick={() => navigate('/data-sources/create')}>
+              <HIcon name="plus" size={14} /> Create a spreadsheet
+            </button>
+          </div>
         </div>
       ) : (
         /* Main 2-panel layout */

@@ -1,10 +1,11 @@
 /* Shell sidebar layout. On desktop: fixed left sidebar. On mobile: a top bar
    with a hamburger that opens a slide-in drawer from the left. */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import HIcon from './HIcon';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { supabase } from '../lib/supabase.js';
 import useIsMobile from '../hooks/useIsMobile.js';
 
 export default function Shell({ active, mesh = false, children }) {
@@ -12,14 +13,31 @@ export default function Shell({ active, mesh = false, children }) {
   const { user, signOut } = useAuth();
   const mobile = useIsMobile();
   const [open, setOpen] = useState(false);
+  const [counts, setCounts] = useState({ data: null, tmpl: null });
+
+  /* Live counts for the sidebar badges. Re-fetches on storage/data changes. */
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const [d, t] = await Promise.all([
+        supabase.from('data_sources').select('id', { count: 'exact', head: true }),
+        supabase.from('templates').select('id', { count: 'exact', head: true }),
+      ]);
+      if (alive) setCounts({ data: d.count ?? 0, tmpl: t.count ?? 0 });
+    };
+    load();
+    window.addEventListener('storage-changed', load);
+    return () => { alive = false; window.removeEventListener('storage-changed', load); };
+  }, []);
 
   const go = (r) => () => { navigate(r); setOpen(false); };
   const handleSignOut = async () => { await signOut(); navigate('/signin'); };
 
+  const badge = (n) => (n ? String(n) : ''); // hide when 0 or loading
   const items = [
     { id: 'dash', label: 'Dashboard', icon: 'home', badge: '', route: '/' },
-    { id: 'data', label: 'Data sources', icon: 'database', badge: '5', route: '/data-sources' },
-    { id: 'tmpl', label: 'Templates', icon: 'layers', badge: '2', route: '/templates' },
+    { id: 'data', label: 'Data sources', icon: 'database', badge: badge(counts.data), route: '/data-sources' },
+    { id: 'tmpl', label: 'Templates', icon: 'layers', badge: badge(counts.tmpl), route: '/templates' },
     { id: 'gen', label: 'Generate', icon: 'ticket', badge: '', route: '/generate' },
   ];
   const ops = [

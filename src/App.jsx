@@ -14,6 +14,7 @@ import ErrorPage from './pages/ErrorPage.jsx';
 import { SignIn, SignUp, Forgot, CheckEmail, ResetPassword } from './pages/Auth.jsx';
 import Dashboard, { HiFiDashboardEmpty } from './pages/Dashboard.jsx';
 import DataSources, { DataSourceUpload } from './pages/DataSources.jsx';
+import CreateSpreadsheet from './pages/CreateSpreadsheet.jsx';
 import Settings from './pages/Settings.jsx';
 import { NotFound, ServerError, Forbidden, Offline } from './pages/Errors.jsx';
 
@@ -84,6 +85,7 @@ const router = createBrowserRouter([
           { path: '/empty', element: <HiFiDashboardEmpty /> },
           { path: '/data-sources', element: <DataSources /> },
           { path: '/data-sources/upload', element: <DataSourceUpload /> },
+          { path: '/data-sources/create', element: <CreateSpreadsheet /> },
           { path: '/templates', element: <Templates /> },
           { path: '/preview/ticket', element: <HiFiPreviewTicket /> },
           { path: '/ledger', element: <HiFiLedger /> },

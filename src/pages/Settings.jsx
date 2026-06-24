@@ -151,7 +151,7 @@ export default function Settings() {
       </div>
 
       {/* Natural-flow grid (page scrolls) + bottom gap so the last card breathes. */}
-      <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 460px', gap: 24, alignItems: 'start', paddingBottom: 32 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 460px', gap: 24, alignItems: 'start', paddingBottom: 32, paddingRight: mobile ? 16 : 0 }}>
         <div className="h-col" style={{ gap: 16 }}>
           {/* Company identity */}
           <div className="h-card" style={{ padding: 20 }}>
@@ -327,7 +327,7 @@ export default function Settings() {
             <div className="h-eyebrow">LIVE PREVIEW</div>
             <span className="h-meta">{selectedTpl?.name || 'Template'}</span>
           </div>
-          <div style={{ ...previewVars, background: 'var(--paper-3)', borderRadius: 'var(--r-lg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 18, minHeight: 560 }}>
+          <div style={{ ...previewVars, background: 'var(--paper-3)', borderRadius: 'var(--r-lg)', display: 'flex', alignItems: 'center', justifyContent: mobile ? 'flex-start' : 'center', padding: 18, minHeight: mobile ? 'auto' : 560, overflowX: 'auto' }}>
             <Invoice variant={previewVariant} sample={previewSample} />
           </div>
         </div>
