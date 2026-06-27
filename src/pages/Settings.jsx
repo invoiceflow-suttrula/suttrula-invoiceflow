@@ -86,10 +86,12 @@ export default function Settings() {
   const save = async () => {
     setSaving(true);
     setSaved(false);
-    const payload = { ...form, updated_at: new Date().toISOString() };
+    const { data: authData } = await supabase.auth.getUser();
+    const uid = authData?.user?.id;
+    const payload = { ...form, user_id: uid, updated_at: new Date().toISOString() };
     const res = company
       ? await supabase.from('companies').update(payload).eq('id', company.id).select().maybeSingle()
-      : await supabase.from('companies').insert(form).select().maybeSingle();
+      : await supabase.from('companies').upsert(payload, { onConflict: 'user_id' }).select().maybeSingle();
     setSaving(false);
     if (res.error) { alert('Save failed: ' + res.error.message); return; }
     if (res.data) setCompany(res.data);

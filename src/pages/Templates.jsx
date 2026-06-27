@@ -46,15 +46,10 @@ export default function Templates() {
   const brand = brandingSample(company);
   const brandVars = accentVars(company?.accent_color);
 
-  /* Remember the chosen template as the default (DB), then open the generator on it. */
-  const useTemplate = async () => {
-    if (selected?.id) {
-      await supabase.from('templates').update({ is_default: false }).neq('id', selected.id);
-      await supabase.from('templates').update({ is_default: true }).eq('id', selected.id);
-      navigate(`/generate?template=${selected.id}`);
-    } else {
-      navigate('/generate');
-    }
+  /* Templates are a shared, read-only design catalog — just open the generator on
+     the chosen one (it's passed via ?template=, so no shared state is mutated). */
+  const useTemplate = () => {
+    navigate(selected?.id ? `/generate?template=${selected.id}` : '/generate');
   };
 
   return (

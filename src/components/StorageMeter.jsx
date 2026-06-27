@@ -17,15 +17,19 @@ export function notifyStorageChanged() {
 }
 
 async function bucketUsage(bucket) {
+  /* Files live under <userId>/<batchId>/… — only sum this user's own folder. */
+  const { data: authData } = await supabase.auth.getUser();
+  const uid = authData?.user?.id;
+  if (!uid) return 0;
   let total = 0;
-  const { data: top, error } = await supabase.storage.from(bucket).list('', { limit: 1000 });
-  if (error || !top) return 0;
-  for (const entry of top) {
+  const { data: batches, error } = await supabase.storage.from(bucket).list(uid, { limit: 1000 });
+  if (error || !batches) return 0;
+  for (const entry of batches) {
     if (entry.id && entry.metadata) {
-      total += entry.metadata.size || 0;            // a file at the root
+      total += entry.metadata.size || 0;            // a file directly under the user folder
     } else {
-      /* a folder (e.g. a batch id) — list its files one level down */
-      const { data: files } = await supabase.storage.from(bucket).list(entry.name, { limit: 1000 });
+      /* a batch folder — list its files one level down */
+      const { data: files } = await supabase.storage.from(bucket).list(`${uid}/${entry.name}`, { limit: 1000 });
       for (const f of files || []) total += f.metadata?.size || 0;
     }
   }

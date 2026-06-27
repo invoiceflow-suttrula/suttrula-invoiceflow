@@ -163,13 +163,14 @@ export function HiFiLedger() {
 
     /* Reclaim space: if a batch folder now has no PDFs left, drop its batch.zip
        + batch record too (the zip is the bulk of the storage). */
-    const batchIds = [...new Set(targets.map((r) => r.pdf_storage_path?.split('/')[0]).filter(Boolean))];
-    for (const bid of batchIds) {
-      const { data: left } = await supabase.storage.from('invoices').list(bid, { limit: 1000 });
+    /* The batch folder is the path without the file name (e.g. <uid>/<batchId>). */
+    const folders = [...new Set(targets.map((r) => r.pdf_storage_path?.split('/').slice(0, -1).join('/')).filter(Boolean))];
+    for (const folder of folders) {
+      const { data: left } = await supabase.storage.from('invoices').list(folder, { limit: 1000 });
       const pdfsLeft = (left || []).some((f) => f.name.endsWith('.pdf'));
       if (!pdfsLeft) {
-        await supabase.storage.from('invoices').remove([`${bid}/batch.zip`]);
-        await supabase.from('invoice_batches').delete().eq('zip_storage_path', `${bid}/batch.zip`);
+        await supabase.storage.from('invoices').remove([`${folder}/batch.zip`]);
+        await supabase.from('invoice_batches').delete().eq('zip_storage_path', `${folder}/batch.zip`);
       }
     }
     setBusy(false);

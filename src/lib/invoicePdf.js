@@ -236,6 +236,12 @@ export async function renderInvoicePdf({ variant, sample, accent }) {
 export async function generateBatch({ source, template, mapping, customFields = [], hidden = [], company, rows: providedRows }, onProgress) {
   const variant = parseInt(template?.layout_type, 10) || 1;
 
+  /* Owner of everything we create — files live under <userId>/… and every DB
+     row carries user_id so RLS keeps each account's data fully separate. */
+  const { data: authData } = await supabase.auth.getUser();
+  const userId = authData?.user?.id;
+  if (!userId) throw new Error('You must be signed in to generate invoices.');
+
   let rowDatas = providedRows;
   if (!rowDatas) {
     const { data, error } = await supabase
@@ -269,7 +275,7 @@ export async function generateBatch({ source, template, mapping, customFields = 
       company, refNumber, dateStr, customFields, hidden,
     });
     const blob = await renderInvoicePdf({ variant, sample, accent: company?.accent_color });
-    const path = `${batchId}/${refNumber}.pdf`;
+    const path = `${userId}/${batchId}/${refNumber}.pdf`;
 
     const up = await supabase.storage.from('invoices').upload(path, blob, {
       contentType: 'application/pdf', upsert: true,
@@ -277,6 +283,7 @@ export async function generateBatch({ source, template, mapping, customFields = 
     if (up.error) throw up.error;
 
     invoiceRows.push({
+      user_id: userId,
       company_id: company?.id ?? null,
       ref_number: refNumber,
       client_name: meta.client_name,
@@ -306,12 +313,13 @@ export async function generateBatch({ source, template, mapping, customFields = 
   if (invErr) throw invErr;
 
   const zipBlob = await zip.generateAsync({ type: 'blob' });
-  const zipPath = `${batchId}/batch.zip`;
+  const zipPath = `${userId}/${batchId}/batch.zip`;
   await supabase.storage.from('invoices').upload(zipPath, zipBlob, {
     contentType: 'application/zip', upsert: true,
   });
 
   await supabase.from('invoice_batches').insert({
+    user_id: userId,
     company_id: company?.id ?? null,
     batch_name: `${source.file_name} · ${invoiceRows.length} invoices`,
     invoice_count: invoiceRows.length,
