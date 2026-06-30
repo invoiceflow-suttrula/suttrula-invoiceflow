@@ -1,12 +1,13 @@
 /* Create a data source in-app with an Excel-like grid (react-data-grid):
-   inline editing, keyboard navigation, cell selection, row multi-select,
-   sorting, column resize, single-cell copy/paste, undo/redo, validation,
-   and row/column operations. Saves into data_sources + data_rows (same shape
-   as an uploaded file). Optional .xlsx export via SheetJS. */
+   inline editing, keyboard nav, drag-to-select cell ranges, range copy +
+   block (multi-row/col) paste, sorting, column resize, drag to reorder
+   rows/columns, undo/redo, validation, and all row/column operations in a
+   right-click menu. Saves into data_sources + data_rows (same shape as an
+   uploaded file). Optional .xlsx export via SheetJS. */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DataGrid, renderTextEditor, SelectColumn, SELECT_COLUMN_KEY, Row as GridRow } from 'react-data-grid';
+import { DataGrid, renderTextEditor, SELECT_COLUMN_KEY, Row as GridRow } from 'react-data-grid';
 import 'react-data-grid/lib/styles.css';
 import * as XLSX from 'xlsx';
 import Shell from '../components/Shell.jsx';
@@ -17,14 +18,13 @@ import useIsMobile from '../hooks/useIsMobile.js';
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const colLetter = (n) => { let s = ''; let x = n + 1; while (x > 0) { const m = (x - 1) % 26; s = String.fromCharCode(65 + m) + s; x = Math.floor((x - 1) / 26); } return s; };
 const DEFAULT_COLS = ['Name', 'Email', 'Phone', 'City', 'GSTIN', 'Item', 'Qty', 'Rate', 'Tax'];
 const DRAG_KEY = '__drag';
-const BLANK_ROWS = 40; // start with a full sheet, like Excel
+const BLANK_ROWS = 40;
 const blankRows = (n) => Array.from({ length: n }, () => ({ _id: uid() }));
 const isCellCol = (k) => !!k && k !== SELECT_COLUMN_KEY && k !== DRAG_KEY;
-const colLetter = (n) => { let s = ''; let x = n + 1; while (x > 0) { const m = (x - 1) % 26; s = String.fromCharCode(65 + m) + s; x = Math.floor((x - 1) / 26); } return s; };
-// Wrap the default text editor so blank cells (undefined) become '' — keeps the
-// <input> controlled and avoids React's "uncontrolled→controlled" warning.
+// Wrap the default text editor so blank cells (undefined) become '' (controlled input).
 const editTextCell = (props) => renderTextEditor({ ...props, row: { ...props.row, [props.column.key]: props.row[props.column.key] ?? '' } });
 
 const colType = (name) => {
@@ -36,7 +36,7 @@ const colType = (name) => {
 };
 const cellValid = (type, v) => {
   const s = String(v ?? '').trim();
-  if (!s) return true; // empty is allowed
+  if (!s) return true;
   if (type === 'email') return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s);
   if (type === 'number') return !Number.isNaN(parseFloat(s.replace(/[^0-9.\-]/g, '')));
   if (type === 'phone') return /^[\d+()\-\s]{6,}$/.test(s);
@@ -51,65 +51,39 @@ export default function CreateSpreadsheet() {
   const [fileName, setFileName] = useState('New_Spreadsheet');
   const [cols, setCols] = useState(() => DEFAULT_COLS.map((name) => ({ id: uid(), name })));
   const [rows, setRows] = useState(() => blankRows(BLANK_ROWS));
-  const [selectedRows, setSelectedRows] = useState(() => new Set());
   const [sortColumns, setSortColumns] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [renamingId, setRenamingId] = useState(null); // column being renamed (inline in header)
 
-  /* find / replace + context menu */
+  /* find / replace */
   const [findOpen, setFindOpen] = useState(false);
   const [replaceMode, setReplaceMode] = useState(false);
   const [findText, setFindText] = useState('');
   const [replaceText, setReplaceText] = useState('');
   const [matchIdx, setMatchIdx] = useState(0);
   const [menu, setMenu] = useState(null);
+
+  /* range selection (drag across cells) */
+  const [range, setRange] = useState(null); // {r1,c1,r2,c2} in display indices / data-col indices
+  const selecting = useRef(false);
+  const anchorCell = useRef(null); // {rowIdx, colIdx} for block paste
+  const lastPaste = useRef(0);     // dedupe (Ctrl+V readText + native paste event)
+  const rightClickGuard = useRef(false); // keep the range when right-clicking inside it
+
   const gridRef = useRef(null);
   const findInputRef = useRef(null);
-  const dragRow = useRef(null); // rowIdx being dragged (grip handle)
+  const dragRow = useRef(null);
   const openFind = (withReplace) => { setReplaceMode(withReplace); setFindOpen(true); setTimeout(() => findInputRef.current?.focus(), 0); };
   useEffect(() => { setMatchIdx(0); }, [findText]);
 
   /* ── undo / redo over {cols, rows} ── */
   const past = useRef([]);
   const future = useRef([]);
-  const copied = useRef(null); // last copied cell value (for Ctrl+C / Ctrl+V)
   const snap = () => { past.current.push({ cols, rows }); if (past.current.length > 40) past.current.shift(); future.current = []; };
   const setBoth = (nc, nr) => { snap(); setCols(nc); setRows(nr); };
   const undo = () => { if (!past.current.length) return; future.current.unshift({ cols, rows }); const p = past.current.pop(); setCols(p.cols); setRows(p.rows); };
   const redo = () => { if (!future.current.length) return; past.current.push({ cols, rows }); const f = future.current.shift(); setCols(f.cols); setRows(f.rows); };
-
-  useEffect(() => {
-    const onKey = (e) => {
-      const t = e.target;
-      const editing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
-      const mod = e.ctrlKey || e.metaKey;
-      if (mod && e.key.toLowerCase() === 'f') { e.preventDefault(); openFind(false); return; }
-      if (mod && e.key.toLowerCase() === 'h') { e.preventDefault(); openFind(true); return; }
-      if (e.key === 'Escape') { setMenu(null); setFindOpen(false); return; }
-      if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { if (editing) return; e.preventDefault(); undo(); }
-      else if (mod && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) { if (editing) return; e.preventDefault(); redo(); }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  });
-
-  /* ── column ops ── */
-  const addColumn = () => setBoth([...cols, { id: uid(), name: `Column ${cols.length + 1}` }], rows);
-  const removeColumn = (id) => { if (cols.length <= 1) return; setBoth(cols.filter((c) => c.id !== id), rows.map((r) => { const { [id]: _omit, ...rest } = r; return rest; })); };
-  const renameColumn = (id, name) => { snap(); setCols(cols.map((c) => (c.id === id ? { ...c, name } : c))); };
-  const moveColumn = (i, dir) => { const j = i + dir; if (j < 0 || j >= cols.length) return; const a = [...cols]; [a[i], a[j]] = [a[j], a[i]]; setBoth(a, rows); };
-  const insertColumnAt = (index) => { const a = [...cols]; a.splice(index, 0, { id: uid(), name: `Column ${cols.length + 1}` }); setBoth(a, rows); };
-  const insertColumnById = (colId, after) => { const idx = cols.findIndex((c) => c.id === colId); if (idx < 0) return; insertColumnAt(idx + (after ? 1 : 0)); };
-
-  /* ── row ops ── */
-  const addRow = () => setBoth(cols, [...rows, { _id: uid() }]);
-  const deleteSelected = () => { if (!selectedRows.size) return; setBoth(cols, rows.filter((r) => !selectedRows.has(r._id))); setSelectedRows(new Set()); };
-  const duplicateSelected = () => {
-    if (!selectedRows.size) return;
-    const dups = rows.filter((r) => selectedRows.has(r._id)).map((r) => ({ ...r, _id: uid() }));
-    setBoth(cols, [...rows, ...dups]);
-  };
-  const clearRows = () => { setBoth(cols, [{ _id: uid() }]); setSelectedRows(new Set()); };
 
   /* ── sorted view; edits merged back by _id to preserve real order ── */
   const displayRows = useMemo(() => {
@@ -118,6 +92,7 @@ export default function CreateSpreadsheet() {
     const sorted = [...rows].sort((a, b) => String(a[columnKey] ?? '').localeCompare(String(b[columnKey] ?? ''), undefined, { numeric: true }));
     return direction === 'DESC' ? sorted.reverse() : sorted;
   }, [rows, sortColumns]);
+  const rowIndexMap = useMemo(() => new Map(displayRows.map((r, i) => [r._id, i])), [displayRows]);
 
   /* ── find matches (in displayed order) ── */
   const matches = useMemo(() => {
@@ -134,9 +109,38 @@ export default function CreateSpreadsheet() {
   const activeMatch = matches[matchIdx] || null;
   const activeKey = activeMatch ? `${activeMatch.rowId}::${activeMatch.colId}` : null;
 
+  /* normalized range */
+  const nr = range && { r1: Math.min(range.r1, range.r2), r2: Math.max(range.r1, range.r2), c1: Math.min(range.c1, range.c2), c2: Math.max(range.c1, range.c2) };
+
+  /* drag-to-select handlers (attached per data cell) */
+  const inRange = (rg, rowIdx, colIdx) => {
+    if (!rg) return false;
+    const r1 = Math.min(rg.r1, rg.r2), r2 = Math.max(rg.r1, rg.r2), c1 = Math.min(rg.c1, rg.c2), c2 = Math.max(rg.c1, rg.c2);
+    return rowIdx >= r1 && rowIdx <= r2 && colIdx >= c1 && colIdx <= c2;
+  };
+  const cellMouseDown = (rowIdx, colIdx, e) => {
+    anchorCell.current = { rowIdx, colIdx };
+    if (e.button === 2) {
+      // right-click: keep the selection if clicking inside it, else select this cell
+      rightClickGuard.current = true;
+      setRange((rg) => (inRange(rg, rowIdx, colIdx) ? rg : { r1: rowIdx, c1: colIdx, r2: rowIdx, c2: colIdx }));
+      return;
+    }
+    if (e.button !== 0) return;
+    selecting.current = true;
+    setRange({ r1: rowIdx, c1: colIdx, r2: rowIdx, c2: colIdx });
+  };
+  const cellMouseEnter = (rowIdx, colIdx) => {
+    if (selecting.current) setRange((rg) => (rg ? { ...rg, r2: rowIdx, c2: colIdx } : { r1: rowIdx, c1: colIdx, r2: rowIdx, c2: colIdx }));
+  };
+  useEffect(() => {
+    const up = () => { selecting.current = false; };
+    window.addEventListener('mouseup', up);
+    return () => window.removeEventListener('mouseup', up);
+  }, []);
+
   /* ── grid columns ── */
   const gridColumns = useMemo(() => [
-    SelectColumn,
     {
       key: DRAG_KEY, name: '', width: 48, minWidth: 48, maxWidth: 48, frozen: true,
       resizable: false, sortable: false, draggable: false, cellClass: 'rdg-drag-cell', headerCellClass: 'rdg-corner',
@@ -157,6 +161,19 @@ export default function CreateSpreadsheet() {
       key: c.id, name: c.name || '(unnamed)', editable: true, resizable: true, sortable: true, draggable: true,
       renderEditCell: editTextCell,
       renderHeaderCell: () => {
+        if (renamingId === c.id) {
+          return (
+            <input
+              autoFocus
+              defaultValue={c.name}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onBlur={(e) => { renameColumn(c.id, e.target.value); setRenamingId(null); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { renameColumn(c.id, e.currentTarget.value); setRenamingId(null); } else if (e.key === 'Escape') { setRenamingId(null); } }}
+              style={{ width: '100%', font: 'inherit', color: '#1d2a22', border: '1px solid #1b6a3f', borderRadius: 4, padding: '2px 4px', boxSizing: 'border-box' }}
+            />
+          );
+        }
         const sc = sortColumns.find((s) => s.columnKey === c.id);
         return (
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15, padding: '2px 0' }}>
@@ -167,34 +184,235 @@ export default function CreateSpreadsheet() {
           </div>
         );
       },
+      renderCell: ({ row, rowIdx }) => (
+        <div
+          className="rdg-cellwrap"
+          onMouseDown={(e) => cellMouseDown(rowIdx, i, e)}
+          onMouseEnter={() => cellMouseEnter(rowIdx, i)}
+        >
+          {row[c.id] ?? ''}
+        </div>
+      ),
       cellClass: (row) => {
         const cl = [];
+        if (nr) { const idx = rowIndexMap.get(row._id); if (idx != null && idx >= nr.r1 && idx <= nr.r2 && i >= nr.c1 && i <= nr.c2) cl.push('rdg-range'); }
+        if (matchSet.has(`${row._id}::${c.id}`)) cl.push(`${row._id}::${c.id}` === activeKey ? 'rdg-cell-match-active' : 'rdg-cell-match');
         if (!cellValid(colType(c.name), row[c.id])) cl.push('rdg-cell-invalid');
-        const k = `${row._id}::${c.id}`;
-        if (matchSet.has(k)) cl.push(k === activeKey ? 'rdg-cell-match-active' : 'rdg-cell-match');
         return cl.join(' ') || undefined;
       },
     })),
-  ], [cols, matchSet, activeKey, sortColumns]);
+  ], [cols, matchSet, activeKey, sortColumns, renamingId, range, rowIndexMap]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onRowsChange = (newRows) => {
-    // record history from the pre-change snapshot
-    past.current.push({ cols, rows });
-    if (past.current.length > 40) past.current.shift();
-    future.current = [];
-    // Use a functional update so we always merge into the LATEST rows, never a
-    // stale closure (which caused earlier edits to be lost when moving cells fast).
-    if (!sortColumns.length) {
-      // unsorted: the grid hands back the full, correctly-ordered array
-      setRows(newRows);
-      return;
-    }
-    // sorted view: map edits back onto the real row order by _id
+    past.current.push({ cols, rows }); if (past.current.length > 40) past.current.shift(); future.current = [];
+    if (!sortColumns.length) { setRows(newRows); return; }
     const byId = new Map(newRows.map((r) => [r._id, r]));
     setRows((cur) => cur.map((r) => byId.get(r._id) || r));
   };
-  const onCellCopy = ({ column, row }) => { copied.current = row[column.key] ?? ''; };
-  const onCellPaste = ({ column, row }) => ({ ...row, [column.key]: copied.current ?? row[column.key] });
+
+  /* ── column ops ── */
+  const renameColumn = (id, name) => { snap(); setCols((cur) => cur.map((c) => (c.id === id ? { ...c, name } : c))); };
+  const moveColumnById = (id, dir) => { const i = cols.findIndex((c) => c.id === id); const j = i + dir; if (i < 0 || j < 0 || j >= cols.length) return; const a = [...cols]; [a[i], a[j]] = [a[j], a[i]]; setBoth(a, rows); };
+  const insertColumnAt = (index) => { const a = [...cols]; a.splice(index, 0, { id: uid(), name: `Column ${cols.length + 1}` }); setBoth(a, rows); };
+  const insertColumnById = (id, after) => { const i = cols.findIndex((c) => c.id === id); if (i < 0) return; insertColumnAt(i + (after ? 1 : 0)); };
+  const removeColumn = (id) => { if (cols.length <= 1) return; setBoth(cols.filter((c) => c.id !== id), rows.map((r) => { const { [id]: _omit, ...rest } = r; return rest; })); };
+  const onColumnsReorder = (sourceKey, targetKey) => {
+    const from = cols.findIndex((c) => c.id === sourceKey);
+    const to = cols.findIndex((c) => c.id === targetKey);
+    if (from < 0 || to < 0 || from === to) return;
+    const a = [...cols]; const [m] = a.splice(from, 1); a.splice(to, 0, m); setBoth(a, rows);
+  };
+
+  /* ── row ops ── */
+  const rowIndexById = (id) => rows.findIndex((r) => r._id === id);
+  const insertRow = (id, below) => { const idx = rowIndexById(id); if (idx < 0) return; const a = [...rows]; a.splice(idx + (below ? 1 : 0), 0, { _id: uid() }); setBoth(cols, a); };
+  const deleteRowById = (id) => { const left = rows.filter((r) => r._id !== id); setBoth(cols, left.length ? left : [{ _id: uid() }]); };
+  const duplicateRowById = (id) => { const idx = rowIndexById(id); if (idx < 0) return; const a = [...rows]; a.splice(idx + 1, 0, { ...rows[idx], _id: uid() }); setBoth(cols, a); };
+  const clearCell = (id, colId) => { if (!isCellCol(colId)) return; setBoth(cols, rows.map((r) => (r._id === id ? { ...r, [colId]: '' } : r))); };
+
+  /* multi-selection ops (whole drag range) */
+  const deleteRows = (ids) => { const set = new Set(ids); const left = rows.filter((r) => !set.has(r._id)); setBoth(cols, left.length ? left : [{ _id: uid() }]); setRange(null); };
+  const duplicateRows = (ids) => {
+    const idxs = ids.map((id) => rows.findIndex((r) => r._id === id)).filter((i) => i >= 0).sort((a, b) => a - b);
+    if (!idxs.length) return;
+    const copies = idxs.map((i) => ({ ...rows[i], _id: uid() }));
+    const a = [...rows]; a.splice(idxs[idxs.length - 1] + 1, 0, ...copies); setBoth(cols, a);
+  };
+  const clearCells = (rowIds, colIds) => {
+    const rset = new Set(rowIds); const cids = colIds.filter(isCellCol);
+    if (!cids.length) return;
+    setBoth(cols, rows.map((r) => { if (!rset.has(r._id)) return r; const x = { ...r }; cids.forEach((cid) => { x[cid] = ''; }); return x; }));
+  };
+  const removeColumns = (ids) => {
+    const removeSet = new Set(ids.filter(isCellCol));
+    const keep = cols.filter((c) => !removeSet.has(c.id));
+    if (!keep.length) return;
+    setBoth(keep, rows.map((r) => { const x = { ...r }; removeSet.forEach((cid) => { delete x[cid]; }); return x; }));
+    setRange(null);
+  };
+  const copySelection = (rowIds, colIds) => {
+    const cids = colIds.filter(isCellCol);
+    if (!cids.length) return;
+    const tsv = rowIds.map((rid) => { const r = rows.find((x) => x._id === rid); return cids.map((cid) => String(r?.[cid] ?? '')).join('\t'); }).join('\n');
+    copied.current = tsv;
+    navigator.clipboard?.writeText(tsv);
+  };
+
+  /* ── single-cell copy/paste via context menu ── */
+  const copied = useRef(null);
+  const copyCellById = (id, colId) => { if (!isCellCol(colId)) return; const r = rows.find((x) => x._id === id); if (r) copied.current = r[colId] ?? ''; };
+  const pasteCellById = (id, colId) => { if (!isCellCol(colId)) return; setBoth(cols, rows.map((r) => (r._id === id ? { ...r, [colId]: copied.current ?? r[colId] } : r))); };
+
+  /* ── range copy (Ctrl+C) + block paste (Ctrl+V) ── */
+  const buildRangeTSV = (rg) => {
+    const out = [];
+    for (let r = rg.r1; r <= rg.r2; r++) {
+      const ro = displayRows[r];
+      const line = [];
+      for (let c = rg.c1; c <= rg.c2; c++) line.push(String(ro?.[cols[c]?.id] ?? ''));
+      out.push(line.join('\t'));
+    }
+    return out.join('\n');
+  };
+  const applyBlockPaste = (sr, sc, matrix) => {
+    if (!matrix.length) return;
+    const maxCols = Math.max(...matrix.map((m) => m.length));
+    const workCols = [...cols];
+    while (workCols.length < sc + maxCols) workCols.push({ id: uid(), name: `Column ${workCols.length + 1}` });
+    const workRows = [...rows];
+    const needLen = sr + matrix.length;
+    if (!sortColumns.length) {
+      while (workRows.length < needLen) workRows.push({ _id: uid() });
+    } else {
+      const extra = needLen - displayRows.length;
+      for (let k = 0; k < extra; k++) workRows.push({ _id: uid() });
+    }
+    const displayIds = sortColumns.length
+      ? displayRows.map((r) => r._id).concat(workRows.slice(rows.length).map((r) => r._id))
+      : workRows.map((r) => r._id);
+    const byId = new Map(workRows.map((r) => [r._id, r]));
+    matrix.forEach((line, ri) => {
+      const id = displayIds[sr + ri];
+      if (!id) return;
+      const target = { ...(byId.get(id) || { _id: id }) };
+      line.forEach((val, ci) => { const col = workCols[sc + ci]; if (col) target[col.id] = val; });
+      byId.set(id, target);
+    });
+    setBoth(workCols, workRows.map((r) => byId.get(r._id) || r));
+  };
+
+  /* Parse clipboard text into a 2-D block and paste it at the selected cell.
+     Auto-detects the separator: tab (Excel/Sheets), pipe (Markdown table),
+     comma (CSV), else each line is one cell (a vertical list fills down). */
+  const pasteText = (text) => {
+    if (!text) return;
+    const now = Date.now();
+    if (now - lastPaste.current < 300) return; // guard against double-fire
+    lastPaste.current = now;
+    const norm = text.replace(/\r\n?/g, '\n');
+    let lines = norm.split('\n').filter((l) => l.trim() !== '');
+    if (!lines.length) return;
+
+    const delim = norm.includes('\t') ? '\t'
+      : lines.some((l) => l.includes('|')) ? '|'
+      : lines.some((l) => l.includes(',')) ? ',' : null;
+
+    const splitLine = (ln) => {
+      if (!delim) return [ln];
+      const cells = ln.split(delim).map((s) => s.trim());
+      if (delim === '|') { // markdown tables are wrapped in pipes → drop empty edges
+        if (cells[0] === '') cells.shift();
+        if (cells.length && cells[cells.length - 1] === '') cells.pop();
+      }
+      return cells;
+    };
+    // a markdown separator row looks like | --- | :--: | --- |
+    const isSeparator = (cells) => cells.some((c) => /^:?-{2,}:?$/.test(c)) && cells.every((c) => c === '' || /^:?-{2,}:?$/.test(c));
+
+    const matrix = lines.map(splitLine).filter((cells) => !isSeparator(cells));
+    if (!matrix.length) return;
+    const a = anchorCell.current || (nr ? { rowIdx: nr.r1, colIdx: nr.c1 } : { rowIdx: 0, colIdx: 0 });
+    applyBlockPaste(a.rowIdx, a.colIdx, matrix);
+  };
+
+  /* keyboard: find, undo/redo, range copy, block paste */
+  useEffect(() => {
+    const onKey = (e) => {
+      const t = e.target;
+      const editing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === 'f') { e.preventDefault(); openFind(false); return; }
+      if (mod && e.key.toLowerCase() === 'h') { e.preventDefault(); openFind(true); return; }
+      if (e.key === 'Escape') { setMenu(null); setFindOpen(false); return; }
+      if (mod && e.key.toLowerCase() === 'c' && !editing && nr) { e.preventDefault(); navigator.clipboard?.writeText(buildRangeTSV(nr)); return; }
+      if (mod && e.key.toLowerCase() === 'v' && !editing) { e.preventDefault(); navigator.clipboard?.readText?.().then((txt) => pasteText(txt)).catch(() => {}); return; }
+      if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { if (editing) return; e.preventDefault(); undo(); }
+      else if (mod && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) { if (editing) return; e.preventDefault(); redo(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  /* Fallback: native paste event (fires in some browsers / when a field is focused). */
+  useEffect(() => {
+    const onPaste = (e) => {
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return; // editing a field
+      const text = e.clipboardData?.getData('text/plain');
+      if (!text) return;
+      e.preventDefault();
+      pasteText(text);
+    };
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+  });
+
+  /* ── drag rows to reorder (grip handle) ── */
+  const reorderRows = (fromIdx, toIdx) => {
+    if (fromIdx == null || fromIdx === toIdx) return;
+    const fromId = displayRows[fromIdx]?._id;
+    const toId = displayRows[toIdx]?._id;
+    if (!fromId || !toId || fromId === toId) return;
+    const a = [...rows];
+    const [moved] = a.splice(a.findIndex((r) => r._id === fromId), 1);
+    a.splice(a.findIndex((r) => r._id === toId), 0, moved);
+    setBoth(cols, a);
+  };
+  const renderRow = useCallback((key, props) => (
+    <GridRow
+      {...props}
+      key={key}
+      onDragOver={(ev) => { if (dragRow.current != null) { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; } }}
+      onDrop={(ev) => { if (dragRow.current != null) { ev.preventDefault(); reorderRows(dragRow.current, props.rowIdx); dragRow.current = null; } }}
+    />
+  ), [displayRows, rows, cols]); // eslint-disable-line react-hooks/exhaustive-deps
+  const renderers = useMemo(() => ({ renderRow }), [renderRow]);
+
+  const onFill = ({ columnKey, sourceRow, targetRow }) => (isCellCol(columnKey) ? { ...targetRow, [columnKey]: sourceRow[columnKey] } : targetRow);
+  const onScroll = (e) => { const t = e.currentTarget; if (t.scrollHeight - t.scrollTop - t.clientHeight < 80) setRows((cur) => cur.concat(blankRows(15))); };
+  const onSelectedCellChange = (args) => {
+    const colIdx = cols.findIndex((c) => c.id === args.column?.key);
+    if (colIdx < 0) return;
+    anchorCell.current = { rowIdx: args.rowIdx, colIdx };
+    if (rightClickGuard.current) { rightClickGuard.current = false; return; } // don't collapse on right-click
+    if (!selecting.current) setRange({ r1: args.rowIdx, c1: colIdx, r2: args.rowIdx, c2: colIdx });
+  };
+  const onCellContextMenu = (args, event) => {
+    event.preventGridDefault?.(); event.preventDefault?.();
+    const rIdx = rowIndexMap.get(args.row._id);
+    const cIdx = cols.findIndex((c) => c.id === args.column.key);
+    let selRowIds = [args.row._id];
+    let selColIds = isCellCol(args.column.key) ? [args.column.key] : [];
+    // if the right-click landed inside the drag selection, act on the whole range
+    if (nr && rIdx != null && inRange(nr, rIdx, cIdx)) {
+      selRowIds = [];
+      for (let r = nr.r1; r <= nr.r2; r++) { const id = displayRows[r]?._id; if (id) selRowIds.push(id); }
+      selColIds = [];
+      for (let c = nr.c1; c <= nr.c2; c++) { const col = cols[c]; if (col) selColIds.push(col.id); }
+    }
+    setMenu({ x: event.clientX, y: event.clientY, rowId: args.row._id, colId: args.column.key, selRowIds, selColIds });
+  };
+  const runMenu = (fn) => { fn(); setMenu(null); };
 
   /* ── find / replace ── */
   const gotoMatch = (i) => {
@@ -202,7 +420,7 @@ export default function CreateSpreadsheet() {
     const n = ((i % matches.length) + matches.length) % matches.length;
     setMatchIdx(n);
     const m = matches[n];
-    requestAnimationFrame(() => gridRef.current?.selectCell({ rowIdx: m.rowIdx, idx: m.colIdx + 2 }));
+    requestAnimationFrame(() => gridRef.current?.selectCell({ rowIdx: m.rowIdx, idx: m.colIdx + 1 }));
   };
   const replaceActive = () => {
     if (!activeMatch || !findText) return;
@@ -219,57 +437,11 @@ export default function CreateSpreadsheet() {
     setRows(rows.map((r) => {
       const cset = ids.get(r._id);
       if (!cset) return r;
-      const nr = { ...r };
-      cset.forEach((cid) => { nr[cid] = String(nr[cid] ?? '').replace(re, replaceText); });
-      return nr;
+      const x = { ...r };
+      cset.forEach((cid) => { x[cid] = String(x[cid] ?? '').replace(re, replaceText); });
+      return x;
     }));
   };
-
-  /* ── right-click context menu ops ── */
-  const rowIndexById = (id) => rows.findIndex((r) => r._id === id);
-  const insertRow = (id, below) => { const idx = rowIndexById(id); if (idx < 0) return; const a = [...rows]; a.splice(idx + (below ? 1 : 0), 0, { _id: uid() }); setBoth(cols, a); };
-  const deleteRowById = (id) => { const left = rows.filter((r) => r._id !== id); setBoth(cols, left.length ? left : [{ _id: uid() }]); };
-  const duplicateRowById = (id) => { const idx = rowIndexById(id); if (idx < 0) return; const a = [...rows]; a.splice(idx + 1, 0, { ...rows[idx], _id: uid() }); setBoth(cols, a); };
-  const clearCell = (id, colId) => { if (!isCellCol(colId)) return; setBoth(cols, rows.map((r) => (r._id === id ? { ...r, [colId]: '' } : r))); };
-  const copyCellById = (id, colId) => { if (!isCellCol(colId)) return; const r = rows.find((x) => x._id === id); if (r) copied.current = r[colId] ?? ''; };
-  const pasteCellById = (id, colId) => { if (!isCellCol(colId)) return; setBoth(cols, rows.map((r) => (r._id === id ? { ...r, [colId]: copied.current ?? r[colId] } : r))); };
-  const onCellContextMenu = (args, event) => { event.preventGridDefault?.(); event.preventDefault?.(); setMenu({ x: event.clientX, y: event.clientY, rowId: args.row._id, colId: args.column.key }); };
-  const runMenu = (fn) => { fn(); setMenu(null); };
-
-  /* ── drag to reorder: rows (grip handle) + columns (header) ── */
-  const reorderRows = (fromIdx, toIdx) => {
-    if (fromIdx == null || fromIdx === toIdx) return;
-    const fromId = displayRows[fromIdx]?._id;
-    const toId = displayRows[toIdx]?._id;
-    if (!fromId || !toId || fromId === toId) return;
-    const a = [...rows];
-    const [moved] = a.splice(a.findIndex((r) => r._id === fromId), 1);
-    a.splice(a.findIndex((r) => r._id === toId), 0, moved);
-    setBoth(cols, a);
-  };
-  const onColumnsReorder = (sourceKey, targetKey) => {
-    const from = cols.findIndex((c) => c.id === sourceKey);
-    const to = cols.findIndex((c) => c.id === targetKey);
-    if (from < 0 || to < 0 || from === to) return;
-    const a = [...cols];
-    const [moved] = a.splice(from, 1);
-    a.splice(to, 0, moved);
-    setBoth(a, rows);
-  };
-  const onFill = ({ columnKey, sourceRow, targetRow }) => (isCellCol(columnKey) ? { ...targetRow, [columnKey]: sourceRow[columnKey] } : targetRow);
-  const onScroll = (e) => {
-    const t = e.currentTarget;
-    if (t.scrollHeight - t.scrollTop - t.clientHeight < 80) setRows((cur) => cur.concat(blankRows(15)));
-  };
-  const renderRow = useCallback((key, props) => (
-    <GridRow
-      {...props}
-      key={key}
-      onDragOver={(ev) => { if (dragRow.current != null) { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; } }}
-      onDrop={(ev) => { if (dragRow.current != null) { ev.preventDefault(); reorderRows(dragRow.current, props.rowIdx); dragRow.current = null; } }}
-    />
-  ), [displayRows, rows, cols]); // eslint-disable-line react-hooks/exhaustive-deps
-  const renderers = useMemo(() => ({ renderRow }), [renderRow]);
 
   /* ── validation + filled-row summary ── */
   const invalidCount = useMemo(() => {
@@ -328,6 +500,27 @@ export default function CreateSpreadsheet() {
     }
   };
 
+  const rc = menu?.selRowIds?.length || 1;        // selected row count
+  const cc = menu?.selColIds?.length || 0;        // selected (data) column count
+  const multi = rc > 1 || cc > 1;
+  const MENU = menu ? [
+    { label: multi ? `Copy ${rc}×${Math.max(cc, 1)}` : 'Copy cell', icon: 'layers', fn: () => copySelection(menu.selRowIds, menu.selColIds), disabled: !isCellCol(menu.colId) },
+    { label: 'Paste here', icon: 'download', fn: () => pasteCellById(menu.rowId, menu.colId), disabled: !isCellCol(menu.colId) },
+    { label: multi ? 'Clear cells' : 'Clear cell', icon: 'minus', fn: () => clearCells(menu.selRowIds, menu.selColIds), disabled: !isCellCol(menu.colId) },
+    { sep: true },
+    { label: 'Rename column', icon: 'pencil', fn: () => setRenamingId(menu.colId), disabled: !isCellCol(menu.colId) },
+    { label: 'Move column left', icon: 'chev-l', fn: () => moveColumnById(menu.colId, -1), disabled: !isCellCol(menu.colId) },
+    { label: 'Move column right', icon: 'chev-r', fn: () => moveColumnById(menu.colId, 1), disabled: !isCellCol(menu.colId) },
+    { label: 'Insert column left', icon: 'plus', fn: () => insertColumnById(menu.colId, false), disabled: !isCellCol(menu.colId) },
+    { label: 'Insert column right', icon: 'plus', fn: () => insertColumnById(menu.colId, true), disabled: !isCellCol(menu.colId) },
+    { label: cc > 1 ? `Delete ${cc} columns` : 'Delete column', icon: 'trash', fn: () => removeColumns(cc > 1 ? menu.selColIds : [menu.colId]), disabled: !isCellCol(menu.colId) || cols.length <= (cc > 1 ? cc : 1) },
+    { sep: true },
+    { label: 'Insert row above', icon: 'plus', fn: () => insertRow(menu.rowId, false) },
+    { label: 'Insert row below', icon: 'plus', fn: () => insertRow(menu.rowId, true) },
+    { label: rc > 1 ? `Duplicate ${rc} rows` : 'Duplicate row', icon: 'layers', fn: () => duplicateRows(menu.selRowIds) },
+    { label: rc > 1 ? `Delete ${rc} rows` : 'Delete row', icon: 'trash', fn: () => deleteRows(menu.selRowIds), danger: true },
+  ] : [];
+
   return (
     <Shell active="data">
       <div className="h-topbar"><div className="crumb">DATA SOURCES · CREATE</div></div>
@@ -335,7 +528,7 @@ export default function CreateSpreadsheet() {
       <div className="h-row h-between keep-row" style={{ marginBottom: 16, alignItems: 'flex-start', gap: 12 }}>
         <div className="h-section-title" style={{ margin: 0, minWidth: 0 }}>
           <div className="serif" style={{ fontSize: mobile ? 26 : 34, lineHeight: 1.05 }}>Create spreadsheet</div>
-          <div className="lead">An Excel-like editor — edit cells, copy/paste, sort, undo. Save as a data source.</div>
+          <div className="lead">Right-click a cell for all row & column actions. Drag to select, copy, and paste blocks like Excel.</div>
         </div>
         <div className="h-row" style={{ gap: 8, flexWrap: 'wrap' }}>
           <button className="h-btn" onClick={() => navigate('/data-sources')}><HIcon name="chev-l" size={14} /> Back</button>
@@ -350,7 +543,7 @@ export default function CreateSpreadsheet() {
         </div>
       )}
 
-      {/* file name + toolbar */}
+      {/* toolbar: file name + undo/redo + find only */}
       <div className="h-row" style={{ gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <div className="h-input" style={{ width: mobile ? '100%' : 300 }}>
           <HIcon name="file" size={14} color="var(--ink-5)" />
@@ -358,29 +551,9 @@ export default function CreateSpreadsheet() {
           <span className="h-mono" style={{ fontSize: 11, color: 'var(--ink-6)' }}>.xlsx</span>
         </div>
         <div style={{ flex: 1 }} />
-        <button className="h-iconbtn" title="Undo (Ctrl+Z)" onClick={undo} disabled={!past.current.length} style={{ width: 32, height: 32 }}><HIcon name="chev-l" size={14} /></button>
-        <button className="h-iconbtn" title="Redo (Ctrl+Y)" onClick={redo} disabled={!future.current.length} style={{ width: 32, height: 32 }}><HIcon name="chev-r" size={14} /></button>
+        <button className="h-iconbtn" title="Undo (Ctrl+Z)" onClick={undo} disabled={!past.current.length} style={{ width: 32, height: 32 }}><HIcon name="undo" size={15} /></button>
+        <button className="h-iconbtn" title="Redo (Ctrl+Y)" onClick={redo} disabled={!future.current.length} style={{ width: 32, height: 32 }}><HIcon name="redo" size={15} /></button>
         <button className="h-btn ghost sm" title="Find & replace (Ctrl+F)" onClick={() => openFind(false)}><HIcon name="search" size={13} /> Find</button>
-        <button className="h-btn ghost sm" onClick={addColumn}><HIcon name="plus" size={13} /> Column</button>
-        <button className="h-btn ghost sm" onClick={addRow}><HIcon name="plus" size={13} /> Row</button>
-        <button className="h-btn ghost sm" onClick={duplicateSelected} disabled={!selectedRows.size}>Duplicate</button>
-        <button className="h-btn ghost sm" onClick={deleteSelected} disabled={!selectedRows.size}><HIcon name="trash" size={13} /> Delete{selectedRows.size ? ` (${selectedRows.size})` : ''}</button>
-        <button className="h-btn ghost sm" onClick={clearRows}>Clear</button>
-      </div>
-
-      {/* column manager */}
-      <div className="no-scrollbar" style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 8, marginBottom: 10 }}>
-        {cols.map((c, i) => (
-          <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 4, flex: '0 0 auto', border: '1px solid var(--line-faint)', borderRadius: 'var(--r-md)', padding: '4px 6px', background: 'var(--paper)' }}>
-            <input value={c.name} onChange={(e) => renameColumn(c.id, e.target.value)} placeholder={`Column ${i + 1}`}
-              style={{ width: 110, border: 'none', outline: 'none', background: 'transparent', fontSize: 13, fontWeight: 500, color: 'var(--ink-2)' }} />
-            <button className="h-iconbtn" style={{ width: 22, height: 22 }} title="Move left" disabled={i === 0} onClick={() => moveColumn(i, -1)}><HIcon name="chev-l" size={11} /></button>
-            <button className="h-iconbtn" style={{ width: 22, height: 22 }} title="Move right" disabled={i === cols.length - 1} onClick={() => moveColumn(i, 1)}><HIcon name="chev-r" size={11} /></button>
-            <button className="h-iconbtn" style={{ width: 22, height: 22 }} title="Insert column to the left" onClick={() => insertColumnAt(i)}><HIcon name="plus" size={11} /></button>
-            <button className="h-iconbtn" style={{ width: 22, height: 22 }} title="Remove column" disabled={cols.length <= 1} onClick={() => removeColumn(c.id)}><HIcon name="x" size={11} /></button>
-          </div>
-        ))}
-        <button className="h-btn ghost sm" style={{ flex: '0 0 auto' }} onClick={addColumn}><HIcon name="plus" size={13} /> Add column</button>
       </div>
 
       {/* find & replace bar */}
@@ -420,16 +593,13 @@ export default function CreateSpreadsheet() {
         rows={displayRows}
         rowKeyGetter={(r) => r._id}
         onRowsChange={onRowsChange}
-        selectedRows={selectedRows}
-        onSelectedRowsChange={setSelectedRows}
         sortColumns={sortColumns}
         onSortColumnsChange={setSortColumns}
-        onCellCopy={onCellCopy}
-        onCellPaste={onCellPaste}
-        onCellContextMenu={onCellContextMenu}
         onColumnsReorder={onColumnsReorder}
         onFill={onFill}
         onScroll={onScroll}
+        onSelectedCellChange={onSelectedCellChange}
+        onCellContextMenu={onCellContextMenu}
         renderers={renderers}
         defaultColumnOptions={{ resizable: true, sortable: true, minWidth: 110 }}
         headerRowHeight={46}
@@ -441,7 +611,7 @@ export default function CreateSpreadsheet() {
       <div className="h-row" style={{ marginTop: 8, gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <div className="h-meta" style={{ fontSize: 12 }}>{filledCount} filled · {cols.length} column{cols.length === 1 ? '' : 's'}</div>
         {invalidCount > 0 && <div className="h-status warn">{invalidCount} invalid cell{invalidCount > 1 ? 's' : ''}</div>}
-        <div className="h-meta" style={{ fontSize: 11, color: 'var(--ink-6)' }}>Tip: drag the ⠿ handle to move a row · drag a column header to reorder · drag a cell's bottom-right corner to fill down · scroll for more rows</div>
+        <div className="h-meta" style={{ fontSize: 11, color: 'var(--ink-6)' }}>Drag across cells to select · Ctrl+C / Ctrl+V to copy & paste a block · drag the row number to move a row · drag a column header to reorder · right-click for all actions</div>
       </div>
 
       {/* right-click context menu */}
@@ -449,20 +619,8 @@ export default function CreateSpreadsheet() {
         <>
           <div onClick={() => setMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMenu(null); }} onWheel={() => setMenu(null)}
             style={{ position: 'fixed', inset: 0, zIndex: 80 }} />
-          <div className="h-card" style={{ position: 'fixed', top: Math.min(menu.y, window.innerHeight - 460), left: Math.min(menu.x, window.innerWidth - 200), zIndex: 81, padding: 4, minWidth: 184, boxShadow: '0 10px 30px rgba(0,0,0,.16)' }}>
-            {[
-              { label: 'Copy cell', icon: 'layers', fn: () => copyCellById(menu.rowId, menu.colId), disabled: !isCellCol(menu.colId) },
-              { label: 'Paste cell', icon: 'download', fn: () => pasteCellById(menu.rowId, menu.colId), disabled: !isCellCol(menu.colId) },
-              { label: 'Clear cell', icon: 'minus', fn: () => clearCell(menu.rowId, menu.colId), disabled: !isCellCol(menu.colId) },
-              { sep: true },
-              { label: 'Insert column left', icon: 'plus', fn: () => insertColumnById(menu.colId, false), disabled: !isCellCol(menu.colId) },
-              { label: 'Insert column right', icon: 'plus', fn: () => insertColumnById(menu.colId, true), disabled: !isCellCol(menu.colId) },
-              { sep: true },
-              { label: 'Insert row above', icon: 'plus', fn: () => insertRow(menu.rowId, false) },
-              { label: 'Insert row below', icon: 'plus', fn: () => insertRow(menu.rowId, true) },
-              { label: 'Duplicate row', icon: 'layers', fn: () => duplicateRowById(menu.rowId) },
-              { label: 'Delete row', icon: 'trash', fn: () => deleteRowById(menu.rowId), danger: true },
-            ].map((it, i) => it.sep
+          <div className="h-card" style={{ position: 'fixed', top: Math.min(menu.y, window.innerHeight - 540), left: Math.min(menu.x, window.innerWidth - 200), zIndex: 81, padding: 4, minWidth: 188, boxShadow: '0 10px 30px rgba(0,0,0,.16)' }}>
+            {MENU.map((it, i) => it.sep
               ? <div key={i} style={{ height: 1, background: 'var(--line-faint)', margin: '4px 6px' }} />
               : (
                 <button key={i} disabled={it.disabled} onClick={() => runMenu(it.fn)}
@@ -477,7 +635,6 @@ export default function CreateSpreadsheet() {
       )}
 
       <style>{`
-        /* light Excel skin */
         .rdg-excel {
           --rdg-border-color: #e4e4df;
           --rdg-header-background-color: #217346;
@@ -491,9 +648,11 @@ export default function CreateSpreadsheet() {
         .rdg-excel .rdg-corner { background: #1b6a3f; }
         .rdg-excel .rdg-drag-cell { padding: 0 !important; background: #f4f4f1; color: #5b6159; font-variant-numeric: tabular-nums; }
         .rdg-excel .rdg-drag-cell:hover { background: #e8e8e2; color: #232a25; }
-        .rdg-cell-invalid { background-color: #FDECEA; box-shadow: inset 0 0 0 1px #E3A9A0; }
+        .rdg-cellwrap { display: flex; align-items: center; height: 100%; width: 100%; user-select: none; }
+        .rdg-range { background-color: #d4eede; }
         .rdg-cell-match { background-color: #FFF3C4; }
         .rdg-cell-match-active { background-color: #FFD666; box-shadow: inset 0 0 0 2px #E0A000; }
+        .rdg-cell-invalid { background-color: #FDECEA; box-shadow: inset 0 0 0 1px #E3A9A0; }
       `}</style>
     </Shell>
   );
