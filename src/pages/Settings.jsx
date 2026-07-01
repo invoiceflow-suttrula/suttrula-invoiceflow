@@ -10,7 +10,7 @@ import useIsMobile from '../hooks/useIsMobile.js';
 
 const COLOR_PRESETS = [
   { name: 'Forest', accent: '#2D5C4F', dark: '#102C26', tint: '#E6EEEA' },
-  { name: 'Indigo', accent: '#4F46E5', dark: '#2A2099', tint: '#E8E7F9' },
+  { name: 'Sky', accent: '#2E9FDB', dark: '#1C6EA0', tint: '#E4F3FC' },
   { name: 'Burgundy', accent: '#A0344E', dark: '#5B1C2A', tint: '#F4E6E9' },
   { name: 'Mustard', accent: '#C8902B', dark: '#7A5817', tint: '#FAF1D9' },
   { name: 'Navy', accent: '#1E3A5F', dark: '#0E1B33', tint: '#E0E7EE' },

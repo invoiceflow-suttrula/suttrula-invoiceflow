@@ -126,7 +126,7 @@ export function buildInvoiceFromGroup(group, map, { company, refNumber, dateStr,
    to the accent for all three. */
 const COLOR_PRESETS = {
   '#2d5c4f': { dark: '#102C26', tint: '#E6EEEA' },
-  '#4f46e5': { dark: '#2A2099', tint: '#E8E7F9' },
+  '#2e9fdb': { dark: '#1C6EA0', tint: '#E4F3FC' },
   '#a0344e': { dark: '#5B1C2A', tint: '#F4E6E9' },
   '#c8902b': { dark: '#7A5817', tint: '#FAF1D9' },
   '#1e3a5f': { dark: '#0E1B33', tint: '#E0E7EE' },

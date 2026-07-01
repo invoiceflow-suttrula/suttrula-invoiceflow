@@ -63,6 +63,7 @@ export default function CreateSpreadsheet() {
   const [replaceText, setReplaceText] = useState('');
   const [matchIdx, setMatchIdx] = useState(0);
   const [menu, setMenu] = useState(null);
+  const [showKeys, setShowKeys] = useState(false);
 
   /* range selection (drag across cells) */
   const [range, setRange] = useState(null); // {r1,c1,r2,c2} in display indices / data-col indices
@@ -89,8 +90,15 @@ export default function CreateSpreadsheet() {
   const displayRows = useMemo(() => {
     if (!sortColumns.length) return rows;
     const { columnKey, direction } = sortColumns[0];
-    const sorted = [...rows].sort((a, b) => String(a[columnKey] ?? '').localeCompare(String(b[columnKey] ?? ''), undefined, { numeric: true }));
-    return direction === 'DESC' ? sorted.reverse() : sorted;
+    const dir = direction === 'DESC' ? -1 : 1;
+    return [...rows].sort((a, b) => {
+      const av = String(a[columnKey] ?? '').trim();
+      const bv = String(b[columnKey] ?? '').trim();
+      if (!av && !bv) return 0;
+      if (!av) return 1;   // blanks always sink to the bottom…
+      if (!bv) return -1;  // …regardless of sort direction
+      return dir * av.localeCompare(bv, undefined, { numeric: true });
+    });
   }, [rows, sortColumns]);
   const rowIndexMap = useMemo(() => new Map(displayRows.map((r, i) => [r._id, i])), [displayRows]);
 
@@ -176,9 +184,9 @@ export default function CreateSpreadsheet() {
         }
         const sc = sortColumns.find((s) => s.columnKey === c.id);
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15, padding: '2px 0' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', textAlign: 'center', lineHeight: 1.15, padding: '2px 0' }}>
             <span style={{ fontSize: 10, fontWeight: 600, opacity: 0.7, letterSpacing: 0.4 }}>{colLetter(i)}</span>
-            <span style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
               {c.name || '(unnamed)'}{sc ? (sc.direction === 'ASC' ? '  ↑' : '  ↓') : ''}
             </span>
           </div>
@@ -344,6 +352,13 @@ export default function CreateSpreadsheet() {
       if (mod && e.key.toLowerCase() === 'f') { e.preventDefault(); openFind(false); return; }
       if (mod && e.key.toLowerCase() === 'h') { e.preventDefault(); openFind(true); return; }
       if (e.key === 'Escape') { setMenu(null); setFindOpen(false); return; }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !editing && nr) {
+        e.preventDefault();
+        const rowIds = []; for (let r = nr.r1; r <= nr.r2; r++) { const id = displayRows[r]?._id; if (id) rowIds.push(id); }
+        const colIds = []; for (let c = nr.c1; c <= nr.c2; c++) { const col = cols[c]; if (col) colIds.push(col.id); }
+        clearCells(rowIds, colIds);
+        return;
+      }
       if (mod && e.key.toLowerCase() === 'c' && !editing && nr) { e.preventDefault(); navigator.clipboard?.writeText(buildRangeTSV(nr)); return; }
       if (mod && e.key.toLowerCase() === 'v' && !editing) { e.preventDefault(); navigator.clipboard?.readText?.().then((txt) => pasteText(txt)).catch(() => {}); return; }
       if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { if (editing) return; e.preventDefault(); undo(); }
@@ -554,7 +569,45 @@ export default function CreateSpreadsheet() {
         <button className="h-iconbtn" title="Undo (Ctrl+Z)" onClick={undo} disabled={!past.current.length} style={{ width: 32, height: 32 }}><HIcon name="undo" size={15} /></button>
         <button className="h-iconbtn" title="Redo (Ctrl+Y)" onClick={redo} disabled={!future.current.length} style={{ width: 32, height: 32 }}><HIcon name="redo" size={15} /></button>
         <button className="h-btn ghost sm" title="Find & replace (Ctrl+F)" onClick={() => openFind(false)}><HIcon name="search" size={13} /> Find</button>
+        <button className="h-btn ghost sm" title="Keyboard shortcuts" onClick={() => setShowKeys((v) => !v)}><HIcon name="compass" size={13} /> Shortcuts</button>
       </div>
+
+      {/* keyboard shortcuts guide */}
+      {showKeys && (
+        <div className="h-card" style={{ padding: 14, marginBottom: 12 }}>
+          <div className="h-row h-between" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div className="h-eyebrow">KEYBOARD SHORTCUTS</div>
+            <button className="h-iconbtn" onClick={() => setShowKeys(false)} style={{ width: 28, height: 28 }}><HIcon name="x" size={13} /></button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '1fr 1fr', gap: '6px 24px' }}>
+            {[
+              ['Move between cells', 'Arrow keys'],
+              ['Next / previous cell', 'Tab / Shift+Tab'],
+              ['Start editing a cell', 'Type, or double-click'],
+              ['Confirm edit & move down', 'Enter'],
+              ['Cancel editing', 'Esc'],
+              ['Clear selected cell(s)', 'Delete'],
+              ['Select a range of cells', 'Click + drag'],
+              ['Copy cell / range', 'Ctrl + C'],
+              ['Paste a block', 'Ctrl + V'],
+              ['Undo', 'Ctrl + Z'],
+              ['Redo', 'Ctrl + Y  (or Ctrl+Shift+Z)'],
+              ['Find', 'Ctrl + F'],
+              ['Find & Replace', 'Ctrl + H'],
+              ['Fill a value down', 'Drag the cell’s corner'],
+              ['Move a row', 'Drag the row number'],
+              ['Reorder a column', 'Drag the column header'],
+              ['Sort by a column', 'Click the column header'],
+              ['All row / column actions', 'Right-click a cell'],
+            ].map(([what, keys]) => (
+              <div key={what} className="h-row h-between" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline', padding: '3px 0', borderBottom: '1px dashed var(--line-faint)' }}>
+                <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{what}</span>
+                <span className="h-mono" style={{ fontSize: 11.5, color: 'var(--ink-2)', whiteSpace: 'nowrap' }}>{keys}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* find & replace bar */}
       {findOpen && (
